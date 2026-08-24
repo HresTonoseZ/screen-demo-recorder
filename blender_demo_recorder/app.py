@@ -2,15 +2,15 @@
 #
 # SPDX-License-Identifier: MIT
 
-"""Desktop interface for hotkey-controlled Blender window recording."""
+"""Interactive hotkey-controlled Blender window recorder."""
 
 from __future__ import annotations
 
+import argparse
 import tempfile
 import threading
-import tkinter as tk
+from dataclasses import dataclass
 from pathlib import Path
-from tkinter import filedialog, messagebox, ttk
 
 from pynput import keyboard
 
@@ -24,232 +24,182 @@ from .recording import (
 from .video import video_to_gif
 
 
-class RecorderApp:
-    def __init__(self, root: tk.Tk) -> None:
-        self.root = root
-        self.root.title("Blender Add-on Demo Recorder")
-        self.root.geometry("760x520")
-        self.root.minsize(680, 480)
-        self.windows: list[BlenderWindow] = []
+@dataclass(frozen=True)
+class RecordingOptions:
+    window: BlenderWindow
+    config: Path
+    slug: str
+    title: str
+    subtitle: str
+    badge: str
+    hotkey: str
+    recording_fps: float
+    gif_fps: float
+
+
+class RecorderController:
+    """Toggle one window recording and convert the result after stop."""
+
+    def __init__(self, options: RecordingOptions) -> None:
+        self.options = options
         self.recorder = WindowRecorder()
-        self.hotkey_listener = None
-        self.busy = False
-        self.active_conversion = None
-        example = Path(__file__).resolve().parents[1] / "examples" / "demo-config.json"
-        self.window_value = tk.StringVar()
-        self.config_value = tk.StringVar(value=str(example))
-        self.slug_value = tk.StringVar(value="blender-demo")
-        self.title_value = tk.StringVar(value="Blender Demo")
-        self.subtitle_value = tk.StringVar()
-        self.badge_value = tk.StringVar(value="BLENDER")
-        self.hotkey_value = tk.StringVar(value="<ctrl>+<shift>+<f9>")
-        self.record_fps_value = tk.StringVar(value="30")
-        self.gif_fps_value = tk.StringVar(value="12")
-        self.status_value = tk.StringVar(value="Ready")
-        self._draw()
-        self.refresh_windows()
-        self.apply_hotkey()
-        self.root.protocol("WM_DELETE_WINDOW", self.close)
+        self.temporary: Path | None = None
+        self.converting = False
 
-    def _draw(self) -> None:
-        frame = ttk.Frame(self.root, padding=18)
-        frame.pack(fill="both", expand=True)
-        frame.columnconfigure(1, weight=1)
-        row = 0
-
-        ttk.Label(frame, text="Blender window").grid(row=row, column=0, sticky="w", pady=6)
-        self.window_combo = ttk.Combobox(frame, textvariable=self.window_value, state="readonly")
-        self.window_combo.grid(row=row, column=1, sticky="ew", padx=10)
-        ttk.Button(frame, text="Refresh", command=self.refresh_windows).grid(row=row, column=2)
-        row += 1
-
-        ttk.Label(frame, text="Project config").grid(row=row, column=0, sticky="w", pady=6)
-        ttk.Entry(frame, textvariable=self.config_value).grid(row=row, column=1, sticky="ew", padx=10)
-        ttk.Button(frame, text="Browse", command=self.browse_config).grid(row=row, column=2)
-        row += 1
-
-        for label, variable in (
-            ("Demo slug", self.slug_value),
-            ("Caption title", self.title_value),
-            ("Caption subtitle", self.subtitle_value),
-            ("Caption badge", self.badge_value),
-        ):
-            ttk.Label(frame, text=label).grid(row=row, column=0, sticky="w", pady=6)
-            ttk.Entry(frame, textvariable=variable).grid(row=row, column=1, columnspan=2, sticky="ew", padx=10)
-            row += 1
-
-        ttk.Separator(frame).grid(row=row, column=0, columnspan=3, sticky="ew", pady=12)
-        row += 1
-
-        ttk.Label(frame, text="Toggle hotkey").grid(row=row, column=0, sticky="w", pady=6)
-        ttk.Entry(frame, textvariable=self.hotkey_value).grid(row=row, column=1, sticky="ew", padx=10)
-        ttk.Button(frame, text="Apply", command=self.apply_hotkey).grid(row=row, column=2)
-        row += 1
-
-        rates = ttk.Frame(frame)
-        rates.grid(row=row, column=0, columnspan=3, sticky="ew", pady=6)
-        ttk.Label(rates, text="Recording FPS").pack(side="left")
-        ttk.Entry(rates, textvariable=self.record_fps_value, width=8).pack(side="left", padx=(8, 24))
-        ttk.Label(rates, text="GIF FPS").pack(side="left")
-        ttk.Entry(rates, textvariable=self.gif_fps_value, width=8).pack(side="left", padx=8)
-        row += 1
-
-        self.toggle_button = ttk.Button(frame, text="Start Recording", command=self.toggle_recording)
-        self.toggle_button.grid(row=row, column=0, columnspan=3, sticky="ew", pady=(18, 10), ipady=8)
-        row += 1
-        ttk.Label(frame, textvariable=self.status_value, anchor="center").grid(row=row, column=0, columnspan=3, sticky="ew")
-        row += 1
-        ttk.Label(
-            frame,
-            text="Press the configured hotkey once to start and again to stop. The MP4 and GIF are saved automatically.",
-            anchor="center",
-            foreground="#666666",
-        ).grid(row=row, column=0, columnspan=3, sticky="ew", pady=(8, 0))
-
-    def browse_config(self) -> None:
-        path = filedialog.askopenfilename(filetypes=(("JSON config", "*.json"), ("All files", "*.*")))
-        if path:
-            self.config_value.set(path)
-
-    def refresh_windows(self) -> None:
-        self.windows = list_blender_windows()
-        labels = [window.label for window in self.windows]
-        self.window_combo["values"] = labels
-        if labels:
-            self.window_combo.current(0)
-            self.status_value.set(f"Found {len(labels)} Blender window(s)")
-        else:
-            self.window_value.set("")
-            self.status_value.set("Open Blender, then click Refresh")
-
-    def apply_hotkey(self) -> None:
-        value = self.hotkey_value.get().strip()
-        try:
-            listener = keyboard.GlobalHotKeys({value: lambda: self.root.after(0, self.toggle_recording)})
-            listener.start()
-        except Exception as error:
-            messagebox.showerror("Invalid hotkey", str(error))
-            return
-        if self.hotkey_listener:
-            self.hotkey_listener.stop()
-        self.hotkey_listener = listener
-        self.status_value.set(f"Hotkey active: {value}")
-
-    def _selected_window(self) -> BlenderWindow:
-        index = self.window_combo.current()
-        if index < 0 or index >= len(self.windows):
-            raise RuntimeError("Select an open Blender window")
-        return self.windows[index]
-
-    def toggle_recording(self) -> None:
-        if self.busy:
+    def toggle(self) -> None:
+        if self.converting:
+            print("GIF conversion is still running; hotkey ignored.")
             return
         if self.recorder.is_recording:
-            self._stop_recording()
+            self.stop()
         else:
-            self._start_recording()
+            self.start()
 
-    def _start_recording(self) -> None:
-        try:
-            window = self._selected_window()
-            config = Path(self.config_value.get()).resolve()
-            if not config.is_file():
-                raise FileNotFoundError(f"Config not found: {config}")
-            slug = validate_slug(self.slug_value.get())
-            record_fps = float(self.record_fps_value.get())
-            gif_fps = float(self.gif_fps_value.get())
-            temporary = Path(tempfile.gettempdir()) / f"blender-demo-{slug}.mp4"
-            if temporary.exists():
-                temporary.unlink()
-            self.recorder.start(window.handle, temporary, record_fps)
-            self.active_conversion = (
-                str(config),
-                slug,
-                self.title_value.get(),
-                self.subtitle_value.get(),
-                self.badge_value.get(),
-                gif_fps,
-            )
-        except Exception as error:
-            messagebox.showerror("Cannot start recording", str(error))
-            return
-        self.toggle_button.configure(text="Stop Recording")
-        self.status_value.set(f"Recording: {window.title}")
+    def start(self) -> None:
+        temporary = Path(tempfile.gettempdir()) / f"blender-demo-{self.options.slug}.mp4"
+        if temporary.exists():
+            temporary.unlink()
+        self.recorder.start(
+            self.options.window.handle,
+            temporary,
+            self.options.recording_fps,
+        )
+        self.temporary = temporary
+        print(f"RECORDING STARTED: {self.options.window.title}")
+        print(f"Press {self.options.hotkey} again to stop.")
 
-    def _stop_recording(self) -> None:
-        self.busy = True
-        self.toggle_button.configure(state="disabled", text="Creating GIF...")
-        self.status_value.set("Stopping recording and creating GIF...")
-        conversion = self.active_conversion
-        if conversion is None:
-            self.busy = False
-            self.toggle_button.configure(state="normal", text="Start Recording")
-            messagebox.showerror("Recording failed", "Recording settings are unavailable")
-            return
-        threading.Thread(
-            target=self._finish_recording,
-            args=conversion,
-            daemon=True,
-        ).start()
-
-    def _finish_recording(
-        self,
-        config: str,
-        slug: str,
-        title: str,
-        subtitle: str,
-        badge: str,
-        gif_fps: float,
-    ) -> None:
+    def stop(self) -> None:
+        self.converting = True
         temporary = None
         try:
+            print("Stopping recording...")
             temporary = self.recorder.stop()
             archived, output, count = video_to_gif(
-                config,
+                self.options.config,
                 temporary,
-                slug,
-                title=title,
-                subtitle=subtitle,
-                badge=badge,
-                fps=gif_fps,
+                self.options.slug,
+                title=self.options.title,
+                subtitle=self.options.subtitle,
+                badge=self.options.badge,
+                fps=self.options.gif_fps,
             )
-            message = f"Saved {count} frames\nVideo: {archived}\nGIF: {output}"
-            self.root.after(0, self._finish_success, message)
+            print(f"VIDEO SAVED: {archived}")
+            print(f"GIF SAVED: {output}")
+            print(f"GIF FRAMES: {count}")
+            print(f"Press {self.options.hotkey} to record another take.")
         except Exception as error:
-            self.root.after(0, self._finish_error, str(error))
+            print(f"RECORDING FAILED: {error}")
         finally:
             if temporary and temporary.is_file():
                 temporary.unlink()
+            self.temporary = None
+            self.converting = False
 
-    def _finish_success(self, message: str) -> None:
-        self.busy = False
-        self.active_conversion = None
-        self.toggle_button.configure(state="normal", text="Start Recording")
-        self.status_value.set(message.replace("\n", " | "))
-        messagebox.showinfo("Recording complete", message)
-
-    def _finish_error(self, message: str) -> None:
-        self.busy = False
-        self.active_conversion = None
-        self.toggle_button.configure(state="normal", text="Start Recording")
-        self.status_value.set("Recording failed")
-        messagebox.showerror("Recording failed", message)
-
-    def close(self) -> None:
-        if self.recorder.is_recording:
-            if not messagebox.askyesno("Recording active", "Stop the active recording and close?"):
-                return
-            self.recorder.cancel()
-        if self.hotkey_listener:
-            self.hotkey_listener.stop()
-        self.root.destroy()
+    def cancel(self) -> None:
+        self.recorder.cancel()
+        if self.temporary and self.temporary.is_file():
+            self.temporary.unlink()
+        self.temporary = None
 
 
-def main() -> None:
+def _prompt(text: str, default: str = "") -> str:
+    suffix = f" [{default}]" if default else ""
+    value = input(f"{text}{suffix}: ").strip()
+    return value or default
+
+
+def choose_window(windows: list[BlenderWindow], selected: int | None = None) -> BlenderWindow:
+    if not windows:
+        raise RuntimeError("No visible Blender windows found")
+    if selected is not None:
+        if selected < 1 or selected > len(windows):
+            raise ValueError(f"Window index must be between 1 and {len(windows)}")
+        return windows[selected - 1]
+    print("\nOpen Blender windows:")
+    for index, window in enumerate(windows, start=1):
+        print(f"  {index}. {window.title}")
+    while True:
+        try:
+            index = int(_prompt("Select Blender window", "1"))
+            if index < 1 or index > len(windows):
+                raise ValueError
+            return windows[index - 1]
+        except (ValueError, IndexError):
+            print(f"Enter a number from 1 to {len(windows)}.")
+
+
+def parse_args(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--list-windows", action="store_true", help="List visible Blender windows and exit")
+    parser.add_argument("--window", type=int, help="One-based Blender window index")
+    parser.add_argument("--config", help="Project JSON configuration")
+    parser.add_argument("--slug", help="Stable demo slug")
+    parser.add_argument("--title", help="Caption title")
+    parser.add_argument("--subtitle", help="Caption subtitle")
+    parser.add_argument("--badge", help="Caption badge")
+    parser.add_argument("--hotkey", help="pynput global hotkey")
+    parser.add_argument("--recording-fps", type=float, default=30.0)
+    parser.add_argument("--gif-fps", type=float, default=12.0)
+    return parser.parse_args(argv)
+
+
+def collect_options(args) -> RecordingOptions:
+    windows = list_blender_windows()
+    window = choose_window(windows, args.window)
+    example = Path(__file__).resolve().parents[1] / "examples" / "demo-config.json"
+    config = Path(args.config or _prompt("Project config", str(example))).resolve()
+    if not config.is_file():
+        raise FileNotFoundError(f"Config not found: {config}")
+    slug = validate_slug(args.slug or _prompt("Demo slug", "blender-demo"))
+    title = args.title if args.title is not None else _prompt("Caption title", "Blender Demo")
+    subtitle = args.subtitle if args.subtitle is not None else _prompt("Caption subtitle")
+    badge = args.badge if args.badge is not None else _prompt("Caption badge", "BLENDER")
+    hotkey = args.hotkey or _prompt("Toggle hotkey", "<ctrl>+<shift>+<f9>")
+    if args.recording_fps <= 0 or args.gif_fps <= 0:
+        raise ValueError("FPS values must be greater than zero")
+    return RecordingOptions(
+        window,
+        config,
+        slug,
+        title,
+        subtitle,
+        badge,
+        hotkey,
+        args.recording_fps,
+        args.gif_fps,
+    )
+
+
+def main(argv=None) -> None:
     enable_pixel_accurate_coordinates()
-    root = tk.Tk()
-    RecorderApp(root)
-    root.mainloop()
+    args = parse_args(argv)
+    if args.list_windows:
+        windows = list_blender_windows()
+        if not windows:
+            print("No visible Blender windows found.")
+        for index, window in enumerate(windows, start=1):
+            print(f"{index}: {window.label}")
+        return
+    try:
+        options = collect_options(args)
+        controller = RecorderController(options)
+        listener = keyboard.GlobalHotKeys({options.hotkey: controller.toggle})
+        listener.start()
+    except Exception as error:
+        raise SystemExit(f"Cannot start recorder: {error}") from error
+    print("\nBlender Add-on Demo Recorder is running.")
+    print(f"Target: {options.window.title}")
+    print(f"Toggle recording: {options.hotkey}")
+    print("Press Ctrl+C in this window to exit.\n")
+    stopped = threading.Event()
+    try:
+        while not stopped.wait(1.0):
+            pass
+    except KeyboardInterrupt:
+        print("\nClosing recorder...")
+    finally:
+        listener.stop()
+        controller.cancel()
 
 
 if __name__ == "__main__":

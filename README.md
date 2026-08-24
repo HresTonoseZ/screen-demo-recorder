@@ -98,7 +98,7 @@ The time range is optional. If the slug already exists in the JSON config, its
 saved text and per-demo style are reused. Command-line text values override the
 saved values for the current conversion.
 
-## Desktop Blender recorder
+## Blender recorder application
 
 Launch the desktop interface:
 
@@ -108,17 +108,18 @@ python -m blender_demo_recorder
 
 After installation, `blender-demo-recorder` starts the same application.
 
-Then:
+The application runs in a console so it works without a GUI framework. Then:
 
-1. Open Blender and click **Refresh**.
-2. Select the Blender window to record.
+1. Open Blender and start the recorder.
+2. Select a Blender window from the numbered list.
 3. Select a project JSON configuration and enter the demo text.
 4. Set any global hotkey supported by `pynput`; the default is
    `Ctrl+Shift+F9`, written as `<ctrl>+<shift>+<f9>`.
 5. Press the hotkey once to start recording.
 6. Press the same hotkey again to stop.
 
-The application records only the selected Blender window. On stop, it archives
+The application remains active until `Ctrl+C` is pressed in its console. It
+records only the selected Blender window. On stop, it archives
 the MP4, extracts smooth GIF frames, applies the configured caption style, and
 stores the final GIF automatically. Do not resize the selected Blender window
 during an active recording; moving it is supported.
