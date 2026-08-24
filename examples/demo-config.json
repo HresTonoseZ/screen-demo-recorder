@@ -1,0 +1,54 @@
+{
+  "frames_root": "../.demo_frames",
+  "videos_root": "../media/videos",
+  "output_root": "../dist",
+  "width": 800,
+  "frame_step": 1,
+  "frame_duration_ms": 85,
+  "palette_colors": 96,
+  "loop": 0,
+  "style": {
+    "enabled": true,
+    "anchor": "bottom_center",
+    "offset_x": 0,
+    "offset_y": 18,
+    "width": 520,
+    "padding_x": 18,
+    "padding_y": 11,
+    "line_gap": 4,
+    "corner_radius": 10,
+    "background": "#090E18D9",
+    "border": "#3E89FFA0",
+    "border_width": 1,
+    "title": {
+      "size": 20,
+      "color": "#FFFFFFFF",
+      "font": "",
+      "bold": true
+    },
+    "subtitle": {
+      "size": 13,
+      "color": "#C4D0E4FF",
+      "font": "",
+      "bold": false
+    },
+    "badge": {
+      "enabled": true,
+      "size": 11,
+      "color": "#FFFFFFFF",
+      "background": "#2F70EEEB",
+      "font": "",
+      "bold": true,
+      "padding_x": 10,
+      "padding_y": 4,
+      "corner_radius": 6
+    }
+  },
+  "demos": {
+    "cube-move": {
+      "title": "Move Object",
+      "subtitle": "A deterministic Blender UI demonstration",
+      "badge": "OBJECT MODE"
+    }
+  }
+}
