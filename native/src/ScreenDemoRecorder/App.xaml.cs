@@ -256,8 +256,9 @@ public partial class App : Application
                 var liveBounds = new PixelRect(display.Bounds.X + 100, display.Bounds.Y + 100, 640, 360);
                 using (var liveOverlay = new DesktopOverlayWindow(liveBounds, liveProfile.Overlays, liveProfile.Capture))
                 {
-                    if (!liveOverlay.IsVisible || !liveOverlay.HasExpectedBounds || !liveOverlay.IsPassive || liveOverlay.IsExcludedFromCapture)
-                        throw new InvalidOperationException("The live desktop overlay is not visible, passive, correctly positioned or capture-affinity free.");
+                    if (!liveOverlay.IsVisible || !liveOverlay.HasExpectedBounds || !liveOverlay.IsPassive ||
+                        liveOverlay.IsExcludedFromCapture || liveOverlay.HasCaptureSizedSurface || liveOverlay.VisibleSurfaceCount == 0)
+                        throw new InvalidOperationException("The live desktop overlay is not visible, passive, correctly positioned, capture-affinity free or split into small surfaces.");
                 }
                 var selectorProfile = store.GetActiveProfile();
                 selectorProfile.Selection.HandleShape = SelectionHandleShape.Square;

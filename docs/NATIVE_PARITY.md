@@ -68,8 +68,9 @@ Run the installer database and byte-for-byte extraction checks with:
   applications are focused, including at least one non-English keyboard layout.
 - Confirm selection, boundary, controller, and overlay placement on a real
   mixed-DPI multi-monitor arrangement.
-- Record a full display and confirm the controller and, where Windows accepts
-  boundary display affinity, the boundary do not appear in the encoded output.
+- Record a full display and confirm the controller is excluded while the boundary
+  remains visible for the complete session. A full-display boundary is drawn just
+  inside desktop edges and is therefore expected in that recording.
 - Install, update, launch, and uninstall the MSI on a clean Windows user profile.
 - Sign the release executable and MSI before public distribution.
 

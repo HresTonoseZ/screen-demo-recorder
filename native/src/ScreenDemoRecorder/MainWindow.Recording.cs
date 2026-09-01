@@ -89,19 +89,22 @@ public partial class MainWindow
             var label = liveLabel ? null : LabelRenderer.Render(snapshot.Overlays.Label, area.Width, area.Height);
             var keys = snapshot.Overlays.Keystrokes.Enabled && !liveKeys ? new KeystrokeRenderer(snapshot.Overlays.Keystrokes) : null;
             var clicks = snapshot.Capture.HighlightClicks && !liveClicks ? new ClickRenderer(snapshot.Overlays.Clicks) : null;
+            var hasLiveBounds = TryGetDesktopOverlayBounds(out var liveBounds);
             boundary?.Dispose(); boundary = null;
             desktopOverlay?.Dispose(); desktopOverlay = null;
             if (capturesDesktopWindows)
             {
-                // A monitor/region recording captures this ordinary transparent
-                // window directly. Never apply capture-affinity or draw it twice.
+                // Monitor and region recordings capture the small live surfaces
+                // directly. Never apply capture-affinity or draw them twice.
                 snapshot.Overlays.Desktop.ShowLabel = liveLabel;
                 snapshot.Overlays.Desktop.ShowKeystrokes = liveKeys;
                 snapshot.Overlays.Desktop.ShowMouseClicks = liveClicks;
             }
             if ((snapshot.Overlays.Desktop.ShowLabel || snapshot.Overlays.Desktop.ShowKeystrokes || snapshot.Overlays.Desktop.ShowMouseClicks) &&
-                TryGetDesktopOverlayBounds(out var liveBounds))
+                hasLiveBounds)
                 desktopOverlay = new DesktopOverlayWindow(liveBounds, snapshot.Overlays, snapshot.Capture);
+            if (capturesDesktopWindows && snapshot.Selection.KeepBoundaryVisible && hasLiveBounds)
+                boundary = new RegionBoundary(liveBounds, snapshot.Selection.RecordingColor, snapshot.Selection.LineWidth);
             NativeDesktop.FlushComposition();
             recording = new Mp4Recording(target.Item, area, snapshot,
                 snapshot.Capture.AutomaticFps ? 30 : snapshot.Capture.RecordingFps, label, keys, clicks,

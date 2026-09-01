@@ -80,17 +80,20 @@ for the Python recorder. No Python source or working executable has been removed
   exact physical bounds when WPF receives a DPI change.
 - Persistent topmost boundary that remains visible while the application is
   running and the profile option is enabled, including while the controller is
-  hidden in the notification area. One transparent passive, no-activate,
-  click-through window draws the complete frame at exact physical bounds and cannot
-  intercept Windows input. Capture exclusion is requested independently; if Windows rejects display
-  affinity, the visual boundary remains available instead of failing. The native
-  smoke check verifies visibility, passive styles and exact placement. Encoded
-  monitor-capture exclusion still needs a manual check.
+  hidden in the notification area and throughout recording. Four narrow solid-color,
+  passive, no-activate, click-through windows draw the edges without allocating a
+  capture-sized layered surface. The edges use the configured recording color for
+  an active session and are placed outside the crop where desktop bounds allow it.
+  They do not depend on capture affinity. The native smoke and recording checks
+  verify visibility, passive styles, exact placement and persistence while dynamic
+  overlays update.
 - Independent profile switches show the label, pressed keys, and mouse-click rings
   live over the selected capture target. The live overlay uses the same renderers,
-  placement, timing, and global input hooks as the recording overlays. Its single
-  transparent window is topmost, passive, click-through, and requested for capture
-  exclusion, so it remains usable while the controller is hidden.
+  placement, timing, and global input hooks as the recording overlays. Each visible
+  label or keycap and each click ring owns only a small topmost, passive,
+  click-through surface. No transparent window spans the capture target, and these
+  surfaces do not use capture affinity. Monitor and region capture records the live
+  surfaces directly; individual-window capture composes the same overlays on the GPU.
 - Region, display and individual-window recording through Windows.Graphics.Capture, GPU cropping
   with Direct3D 11, and H.264 MP4 encoding through Windows MediaTranscoder. An event-query
   completion barrier ensures that GPU crop, overlay and resize commands finish before each
@@ -116,12 +119,11 @@ for the Python recorder. No Python source or working executable has been removed
   Windows software encoder automatically. If both cannot start, a focused
   recovery window keeps the unfinished MP4 visible, can open its folder, and can
   apply Efficient/1280-wide settings for a deliberate new recording attempt.
-- Dynamic pressed-key and click pixels use a localized D3D11 staging compositor
-  instead of drawing into the capture surface through Direct2D. Only the small
-  union of currently visible keycaps and click rings is transferred, avoiding the
-  driver-dependent black-frame failure without reading back the complete video
-  frame. Graphics-device creation accepts D3D feature levels 10.0 through 11.1 and
-  falls back to the Windows WARP device when hardware device creation is unavailable.
+- Dynamic pressed-key and click pixels are composited directly into the encoder
+  surface through Direct2D on the recording D3D11 device. The video frame never
+  takes a GPU-to-CPU staging round trip. Graphics-device creation accepts D3D
+  feature levels 10.0 through 11.1 and falls back to the Windows WARP device when
+  hardware device creation is unavailable.
 - Collision-safe profile-specific filename templates and temporary sibling files.
   MP4 settings include opening the destination folder after save. Successful encoding is
   renamed without overwriting previous recordings. Cancel deletes only the

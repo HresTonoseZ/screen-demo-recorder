@@ -33,17 +33,31 @@ internal static class LiveOverlayRecordingChecks
         profile.Overlays.Desktop.ShowKeystrokes = true;
         profile.Overlays.Desktop.ShowMouseClicks = true;
 
+        using var boundary = new RegionBoundary(target.Bounds, "#EE4B5FFF", 3);
         using var overlay = new DesktopOverlayWindow(target.Bounds, profile.Overlays, profile.Capture);
         Require(!overlay.IsExcludedFromCapture, "The live overlay unexpectedly uses capture-affinity.");
+        Require(!overlay.HasCaptureSizedSurface, "The live overlay created a capture-sized layered surface.");
+        Require(boundary.IsVisible && boundary.IsPassive && !boundary.IsExcluded,
+            "The recording boundary is not visible, passive or capture-affinity free.");
         NativeDesktop.FlushComposition();
-        var recording = new Mp4Recording(item, crop, profile, 30, null,
+        var recording = new Mp4Recording(item, crop, profile, 60, null,
             captureKeyboardInput: false, captureMouseInput: false);
         try
         {
             await recording.Ready.WaitAsync(TimeSpan.FromSeconds(15));
-            overlay.AddKeystrokeForChecks(0x4B);
-            overlay.AddMouseClickForChecks(target.Bounds.X + target.Bounds.Width / 2,
-                target.Bounds.Y + target.Bounds.Height / 2, MouseClickButton.Left);
+            for (var index = 0; index < 6; index++)
+            {
+                overlay.AddKeystrokeForChecks(0x41 + index);
+                overlay.AddMouseClickForChecks(
+                    target.Bounds.X + target.Bounds.Width / 3 + index * 12,
+                    target.Bounds.Y + target.Bounds.Height / 2,
+                    index % 2 == 0 ? MouseClickButton.Left : MouseClickButton.Right);
+                await Task.Delay(180);
+            }
+            Require(boundary.IsVisible && boundary.HasExpectedBounds,
+                "The recording boundary disappeared or moved while overlays were updating.");
+            Require(overlay.VisibleSurfaceCount > 0 && !overlay.HasCaptureSizedSurface,
+                "Dynamic live overlays were not split into small visible surfaces.");
             var mp4Path = await recording.Completion.WaitAsync(TimeSpan.FromSeconds(20));
             Require(mp4Path is not null, "The live-overlay monitor recording was not saved.");
             var gifPath = await GifExport.RunAsync(mp4Path!, new PixelRect(0, 0, crop.Width, crop.Height), profile);

@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using ScreenDemoRecorder.Capture;
 using ScreenDemoRecorder.Core.Models;
@@ -12,11 +13,9 @@ namespace ScreenDemoRecorder;
 
 internal sealed class DesktopOverlayWindow : IDisposable
 {
-    private readonly Window window;
-    private readonly Canvas frame;
-    private readonly Image labelImage = new() { IsHitTestVisible = false };
-    private readonly Image keystrokeImage = new() { IsHitTestVisible = false };
-    private readonly Canvas clickCanvas = new() { IsHitTestVisible = false };
+    private readonly List<OverlaySurfaceWindow> surfaces = [];
+    private readonly List<OverlaySurfaceWindow> keystrokeSurfaces = [];
+    private readonly List<OverlaySurfaceWindow> clickSurfaces = [];
     private readonly PixelRect screenBounds;
     private readonly KeystrokeRenderer? keystrokeRenderer;
     private readonly ClickRenderer? clickRenderer;
@@ -24,6 +23,7 @@ internal sealed class DesktopOverlayWindow : IDisposable
     private readonly ClickTimeline? clickTimeline;
     private readonly KeystrokeFilter? keystrokeFilter;
     private readonly Stopwatch clock = Stopwatch.StartNew();
+    private readonly Dispatcher dispatcher = Dispatcher.CurrentDispatcher;
     private readonly DispatcherTimer timer;
     private KeyboardCapture? keyboard;
     private MouseClickCapture? mouse;
@@ -32,55 +32,6 @@ internal sealed class DesktopOverlayWindow : IDisposable
     public DesktopOverlayWindow(PixelRect bounds, OverlaySettings overlays, CaptureSettings capture)
     {
         screenBounds = bounds;
-        frame = new Canvas { Width = bounds.Width, Height = bounds.Height, IsHitTestVisible = false };
-        frame.Children.Add(labelImage);
-        frame.Children.Add(clickCanvas);
-        frame.Children.Add(keystrokeImage);
-        window = new Window
-        {
-            Title = "Live recording overlays",
-            WindowStyle = WindowStyle.None,
-            ResizeMode = ResizeMode.NoResize,
-            ShowInTaskbar = false,
-            ShowActivated = false,
-            Focusable = false,
-            Topmost = true,
-            AllowsTransparency = true,
-            Background = Brushes.Transparent,
-            Width = 1,
-            Height = 1,
-            Opacity = 0,
-            Content = new Viewbox { Stretch = Stretch.Fill, Child = frame, IsHitTestVisible = false },
-        };
-
-        if (overlays.Desktop.ShowLabel)
-        {
-            var label = LabelRenderer.Render(overlays.Label, bounds.Width, bounds.Height, forceEnabled: true);
-            if (label is not null)
-            {
-                labelImage.Source = label.Bitmap;
-                labelImage.Width = label.Bitmap.PixelWidth;
-                labelImage.Height = label.Bitmap.PixelHeight;
-                Canvas.SetLeft(labelImage, label.Bounds.X);
-                Canvas.SetTop(labelImage, label.Bounds.Y);
-            }
-        }
-
-        if (overlays.Desktop.ShowKeystrokes)
-        {
-            keystrokeRenderer = new KeystrokeRenderer(overlays.Keystrokes);
-            keystrokeTimeline = new KeystrokeTimeline(overlays.Keystrokes);
-            keystrokeFilter = new KeystrokeFilter(overlays.Keystrokes, capture);
-            keyboard = new KeyboardCapture(OnKeyPressed);
-        }
-
-        if (overlays.Desktop.ShowMouseClicks)
-        {
-            clickRenderer = new ClickRenderer(overlays.Clicks);
-            clickTimeline = new ClickTimeline(overlays.Clicks);
-            mouse = new MouseClickCapture(OnMouseClicked);
-        }
-
         timer = new DispatcherTimer(DispatcherPriority.Render)
         {
             Interval = TimeSpan.FromMilliseconds(16),
@@ -89,9 +40,31 @@ internal sealed class DesktopOverlayWindow : IDisposable
 
         try
         {
-            window.Show();
-            NativeDesktop.Place(window, bounds, true, requireCaptureExclusion: false);
-            window.Opacity = 1;
+            if (overlays.Desktop.ShowLabel)
+            {
+                var label = LabelRenderer.Render(overlays.Label, bounds.Width, bounds.Height, forceEnabled: true);
+                if (label is not null)
+                {
+                    var surface = CreateSurface("Live label overlay");
+                    surface.Update(label.Bitmap, ToRect(label.Bounds), 1);
+                }
+            }
+
+            if (overlays.Desktop.ShowKeystrokes)
+            {
+                keystrokeRenderer = new KeystrokeRenderer(overlays.Keystrokes);
+                keystrokeTimeline = new KeystrokeTimeline(overlays.Keystrokes);
+                keystrokeFilter = new KeystrokeFilter(overlays.Keystrokes, capture);
+                keyboard = new KeyboardCapture(OnKeyPressed);
+            }
+
+            if (overlays.Desktop.ShowMouseClicks)
+            {
+                clickRenderer = new ClickRenderer(overlays.Clicks);
+                clickTimeline = new ClickTimeline(overlays.Clicks);
+                mouse = new MouseClickCapture(OnMouseClicked);
+            }
+
             if (keyboard is not null || mouse is not null) timer.Start();
         }
         catch
@@ -101,31 +74,51 @@ internal sealed class DesktopOverlayWindow : IDisposable
         }
     }
 
-    public bool IsExcludedFromCapture => NativeDesktop.IsExcluded(window);
+    public bool IsExcludedFromCapture => surfaces.Any(surface => surface.IsExcludedFromCapture);
 
-    internal bool IsVisible => window.IsVisible;
+    internal bool IsVisible => surfaces.Any(surface => surface.IsVisible);
 
-    internal bool HasExpectedBounds => NativeDesktop.WindowBounds(window) == screenBounds;
+    internal bool HasExpectedBounds => surfaces.Where(surface => surface.IsVisible).All(surface =>
+        surface.Bounds is { } bounds && bounds.X >= screenBounds.X && bounds.Y >= screenBounds.Y &&
+        bounds.Right <= screenBounds.Right && bounds.Bottom <= screenBounds.Bottom);
 
-    internal bool IsPassive => NativeDesktop.IsPassiveOverlay(window);
+    internal bool IsPassive => surfaces.All(surface => surface.IsPassive);
+
+    internal bool HasCaptureSizedSurface => surfaces.Any(surface => surface.Bounds is { } bounds &&
+        bounds.Width >= screenBounds.Width && bounds.Height >= screenBounds.Height);
+
+    internal int VisibleSurfaceCount => surfaces.Count(surface => surface.IsVisible);
 
     internal void AddKeystrokeForChecks(int virtualKey, KeyModifiers modifiers = KeyModifiers.None) =>
         OnKeyPressed(virtualKey, modifiers, false);
 
     internal void AddMouseClickForChecks(int x, int y, MouseClickButton button) => OnMouseClicked(x, y, button);
 
+    private OverlaySurfaceWindow CreateSurface(string title)
+    {
+        var surface = new OverlaySurfaceWindow(screenBounds, title);
+        surfaces.Add(surface);
+        return surface;
+    }
+
     private void OnKeyPressed(int virtualKey, KeyModifiers modifiers, bool altGr)
     {
         var chord = keystrokeFilter?.Filter(virtualKey, modifiers, altGr);
         if (chord is null || disposed) return;
-        _ = window.Dispatcher.BeginInvoke(() => keystrokeTimeline?.Add(chord, clock.Elapsed));
+        _ = dispatcher.BeginInvoke(() =>
+        {
+            if (!disposed) keystrokeTimeline?.Add(chord, clock.Elapsed);
+        });
     }
 
     private void OnMouseClicked(int x, int y, MouseClickButton button)
     {
         if (disposed || x < screenBounds.X || y < screenBounds.Y || x >= screenBounds.Right || y >= screenBounds.Bottom) return;
         var point = new PixelPoint(x - screenBounds.X, y - screenBounds.Y);
-        _ = window.Dispatcher.BeginInvoke(() => clickTimeline?.Add(point, button, clock.Elapsed));
+        _ = dispatcher.BeginInvoke(() =>
+        {
+            if (!disposed) clickTimeline?.Add(point, button, clock.Elapsed);
+        });
     }
 
     private void RenderDynamicOverlays(object? sender, EventArgs e)
@@ -133,50 +126,153 @@ internal sealed class DesktopOverlayWindow : IDisposable
         var now = clock.Elapsed;
         if (keystrokeRenderer is not null && keystrokeTimeline is not null)
         {
-            var raster = keystrokeRenderer.RenderPreview(keystrokeTimeline.VisibleAt(now), screenBounds.Width, screenBounds.Height);
-            keystrokeImage.Source = raster?.Bitmap;
-            keystrokeImage.Visibility = raster is null ? Visibility.Collapsed : Visibility.Visible;
-            if (raster is not null)
+            var placements = keystrokeRenderer.Layout(keystrokeTimeline.VisibleAt(now), screenBounds.Width, screenBounds.Height);
+            EnsureSurfaceCount(keystrokeSurfaces, placements.Length, "Live keystroke overlay");
+            for (var index = 0; index < placements.Length; index++)
             {
-                keystrokeImage.Width = raster.Bitmap.PixelWidth;
-                keystrokeImage.Height = raster.Bitmap.PixelHeight;
-                Canvas.SetLeft(keystrokeImage, raster.Bounds.X);
-                Canvas.SetTop(keystrokeImage, raster.Bounds.Y);
+                var placement = placements[index];
+                keystrokeSurfaces[index].Update(keystrokeRenderer.Keycaps[placement.Key], placement.Bounds, placement.Opacity);
             }
+            HideUnused(keystrokeSurfaces, placements.Length);
         }
 
-        clickCanvas.Children.Clear();
         if (clickRenderer is null || clickTimeline is null) return;
-        foreach (var click in clickRenderer.Layout(clickTimeline.VisibleAt(now)))
+        var clicks = clickRenderer.Layout(clickTimeline.VisibleAt(now));
+        EnsureSurfaceCount(clickSurfaces, clicks.Length, "Live mouse-click overlay");
+        for (var index = 0; index < clicks.Length; index++)
         {
-            var image = new Image
-            {
-                Source = clickRenderer.Textures[click.Button],
-                Width = click.Bounds.Width,
-                Height = click.Bounds.Height,
-                Opacity = click.Opacity,
-                Stretch = Stretch.Fill,
-                IsHitTestVisible = false,
-            };
-            Canvas.SetLeft(image, click.Bounds.X);
-            Canvas.SetTop(image, click.Bounds.Y);
-            clickCanvas.Children.Add(image);
+            var click = clicks[index];
+            var texture = clickRenderer.Textures[click.Button];
+            var maximumSize = Math.Ceiling(texture.PixelWidth * 1.3);
+            var hostBounds = new Rect(
+                click.Bounds.X + (click.Bounds.Width - maximumSize) / 2,
+                click.Bounds.Y + (click.Bounds.Height - maximumSize) / 2,
+                maximumSize,
+                maximumSize);
+            clickSurfaces[index].Update(texture, click.Bounds, click.Opacity, hostBounds);
+        }
+        HideUnused(clickSurfaces, clicks.Length);
+    }
+
+    private void EnsureSurfaceCount(List<OverlaySurfaceWindow> collection, int count, string title)
+    {
+        while (collection.Count < count)
+        {
+            var surface = CreateSurface(title);
+            collection.Add(surface);
         }
     }
+
+    private static void HideUnused(List<OverlaySurfaceWindow> collection, int used)
+    {
+        for (var index = used; index < collection.Count; index++) collection[index].Hide();
+    }
+
+    private static Rect ToRect(PixelRect bounds) => new(bounds.X, bounds.Y, bounds.Width, bounds.Height);
 
     public void Dispose()
     {
         if (disposed) return;
         disposed = true;
-        timer?.Stop();
-        if (timer is not null) timer.Tick -= RenderDynamicOverlays;
-        // Never wait for global hooks on the WPF dispatcher. Windows may delay a
-        // hook thread while another application is busy, which previously froze
-        // the checkbox and the whole main window.
+        timer.Stop();
+        timer.Tick -= RenderDynamicOverlays;
         keyboard?.RequestStop();
         keyboard = null;
         mouse?.RequestStop();
         mouse = null;
-        window.Close();
+        foreach (var surface in surfaces) surface.Dispose();
+        surfaces.Clear();
+        keystrokeSurfaces.Clear();
+        clickSurfaces.Clear();
+    }
+
+    private sealed class OverlaySurfaceWindow : IDisposable
+    {
+        private readonly PixelRect screenBounds;
+        private readonly Canvas canvas = new() { IsHitTestVisible = false, ClipToBounds = true };
+        private readonly Image image = new() { IsHitTestVisible = false, Stretch = Stretch.Fill };
+        private readonly Window window;
+        private PixelRect? placedBounds;
+        private bool disposed;
+
+        public OverlaySurfaceWindow(PixelRect screenBounds, string title)
+        {
+            this.screenBounds = screenBounds;
+            canvas.Children.Add(image);
+            window = new Window
+            {
+                Title = title,
+                WindowStyle = WindowStyle.None,
+                ResizeMode = ResizeMode.NoResize,
+                ShowInTaskbar = false,
+                ShowActivated = false,
+                Focusable = false,
+                Topmost = true,
+                AllowsTransparency = true,
+                Background = Brushes.Transparent,
+                Width = 1,
+                Height = 1,
+                WindowStartupLocation = WindowStartupLocation.Manual,
+                Left = -32000,
+                Top = -32000,
+                Content = new Viewbox { Stretch = Stretch.Fill, Child = canvas, IsHitTestVisible = false },
+            };
+        }
+
+        public bool IsExcludedFromCapture => window.IsVisible && NativeDesktop.IsExcluded(window);
+
+        public bool IsVisible => window.IsVisible;
+
+        public bool IsPassive => !window.IsVisible || NativeDesktop.IsPassiveOverlay(window);
+
+        public PixelRect? Bounds => window.IsVisible ? NativeDesktop.WindowBounds(window) : null;
+
+        public void Update(BitmapSource bitmap, Rect localBounds, double opacity, Rect? hostBounds = null)
+        {
+            if (disposed) return;
+            var host = hostBounds ?? localBounds;
+            var left = Math.Max(0, (int)Math.Floor(host.Left));
+            var top = Math.Max(0, (int)Math.Floor(host.Top));
+            var right = Math.Min(screenBounds.Width, (int)Math.Ceiling(host.Right));
+            var bottom = Math.Min(screenBounds.Height, (int)Math.Ceiling(host.Bottom));
+            if (right <= left || bottom <= top || opacity <= 0)
+            {
+                Hide();
+                return;
+            }
+
+            var width = right - left;
+            var height = bottom - top;
+            canvas.Width = width;
+            canvas.Height = height;
+            image.Source = bitmap;
+            image.Width = localBounds.Width;
+            image.Height = localBounds.Height;
+            image.Opacity = Math.Clamp(opacity, 0, 1);
+            Canvas.SetLeft(image, localBounds.Left - left);
+            Canvas.SetTop(image, localBounds.Top - top);
+            var physicalBounds = new PixelRect(screenBounds.X + left, screenBounds.Y + top, width, height);
+            var wasVisible = window.IsVisible;
+            if (!wasVisible) window.Show();
+            if (!wasVisible || placedBounds != physicalBounds)
+            {
+                NativeDesktop.Place(window, physicalBounds, true, requireCaptureExclusion: false);
+                placedBounds = physicalBounds;
+            }
+        }
+
+        public void Hide()
+        {
+            if (disposed || !window.IsVisible) return;
+            window.Hide();
+            image.Source = null;
+        }
+
+        public void Dispose()
+        {
+            if (disposed) return;
+            disposed = true;
+            window.Close();
+        }
     }
 }

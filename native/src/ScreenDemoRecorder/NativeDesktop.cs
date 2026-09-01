@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Windows;
@@ -27,6 +28,15 @@ public sealed record DesktopWindowInfo(nint Handle, uint ProcessId, string Title
 
 internal static class NativeDesktop
 {
+    private static readonly ConditionalWeakTable<Window, PlacementState> placements = new();
+
+    private sealed class PlacementState
+    {
+        public nint Handle { get; set; }
+        public PixelRect Bounds { get; set; }
+        public bool DpiHandlerAttached { get; set; }
+    }
+
     private delegate bool MonitorCallback(nint monitor, nint dc, ref NativeRect rect, nint data);
     private delegate bool WindowCallback(nint window, nint data);
 
@@ -45,6 +55,12 @@ internal static class NativeDesktop
         return monitors.OrderByDescending(m => m.Primary).ThenBy(m => m.Name, StringComparer.Ordinal)
             .Select((m, i) => new DisplayInfo(i + 1, m.Name, m.Bounds, m.Primary, m.Monitor)).ToArray();
     }
+
+    public static PixelRect VirtualScreenBounds() => new(
+        GetSystemMetrics(76),
+        GetSystemMetrics(77),
+        GetSystemMetrics(78),
+        GetSystemMetrics(79));
 
     public static IReadOnlyList<DesktopWindowInfo> Windows()
     {
@@ -149,15 +165,24 @@ internal static class NativeDesktop
         var style = GetWindowLongPtr(hwnd, -20).ToInt64() | 0x80;
         if (clickThrough) style |= 0x20 | 0x08000000;
         SetWindowLongPtr(hwnd, -20, (nint)style);
-        void ApplyPhysicalBounds()
+        var state = placements.GetOrCreateValue(window);
+        state.Handle = hwnd;
+        state.Bounds = bounds;
+        if (!state.DpiHandlerAttached)
         {
-            if (!SetWindowPos(hwnd, new nint(-1), bounds.X, bounds.Y, bounds.Width, bounds.Height, 0x0010))
-                throw new Win32Exception();
-            if (WindowBounds(window) != bounds)
-                throw new InvalidOperationException("Windows did not apply the requested physical-pixel window bounds.");
+            window.DpiChanged += (_, _) => ApplyPhysicalBounds(window, state);
+            state.DpiHandlerAttached = true;
         }
-        window.DpiChanged += (_, _) => ApplyPhysicalBounds();
-        ApplyPhysicalBounds();
+        ApplyPhysicalBounds(window, state);
+    }
+
+    private static void ApplyPhysicalBounds(Window window, PlacementState state)
+    {
+        var bounds = state.Bounds;
+        if (!SetWindowPos(state.Handle, new nint(-1), bounds.X, bounds.Y, bounds.Width, bounds.Height, 0x0010))
+            throw new Win32Exception();
+        if (WindowBounds(window) != bounds)
+            throw new InvalidOperationException("Windows did not apply the requested physical-pixel window bounds.");
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -202,6 +227,7 @@ internal static class NativeDesktop
     [DllImport("user32.dll", SetLastError = true)] [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool GetWindowRect(nint hwnd, out NativeRect rect);
     [DllImport("user32.dll")] private static extern uint GetDpiForWindow(nint hwnd);
+    [DllImport("user32.dll")] private static extern int GetSystemMetrics(int index);
     [DllImport("user32.dll")] private static extern nint GetThreadDpiAwarenessContext();
     [DllImport("user32.dll")] [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool AreDpiAwarenessContextsEqual(nint first, nint second);
