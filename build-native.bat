@@ -27,19 +27,10 @@ if not defined DOTNET_EXE (
     if errorlevel 2 goto :cancelled
 
     echo.
-    echo Downloading the official Microsoft .NET installer...
-    set "INSTALL_SCRIPT=%TEMP%\screen-demo-recorder-dotnet-install.ps1"
-    powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; $ProgressPreference='SilentlyContinue'; Invoke-WebRequest -UseBasicParsing 'https://dot.net/v1/dotnet-install.ps1' -OutFile $env:INSTALL_SCRIPT"
-    if errorlevel 1 (
-        echo Failed to download the .NET installer. Check the internet connection and try again.
-        goto :failed
-    )
-
     echo Installing .NET SDK %SDK_VERSION% into:
     echo %APP_DOTNET_DIR%
-    powershell.exe -NoProfile -ExecutionPolicy Bypass -File "!INSTALL_SCRIPT!" -Version "%SDK_VERSION%" -InstallDir "%APP_DOTNET_DIR%" -Architecture x64 -NoPath
+    powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\install-dotnet-sdk.ps1" -Version "%SDK_VERSION%" -InstallDir "%APP_DOTNET_DIR%"
     set "INSTALL_EXIT=%ERRORLEVEL%"
-    del /q "!INSTALL_SCRIPT!" >nul 2>&1
     if not "!INSTALL_EXIT!"=="0" (
         echo .NET SDK installation failed with exit code !INSTALL_EXIT!.
         goto :failed
@@ -63,7 +54,7 @@ set "NUGET_HTTP_CACHE_PATH=%APP_TOOL_DIR%\NuGet\v3-cache"
 set "PSModuleAnalysisCachePath=%APP_TOOL_DIR%\PowerShell\ModuleAnalysisCache"
 
 pushd "%~dp0"
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0build-native.ps1" -DotNet "%DOTNET_EXE%"
+"%DOTNET_EXE%" publish "native\src\ScreenDemoRecorder\ScreenDemoRecorder.csproj" -c Release -r win-x64 --self-contained true -p:PublishSingleFile=false -o "dist\native-preview" --nologo --disable-build-servers
 set "BUILD_EXIT=%ERRORLEVEL%"
 "%DOTNET_EXE%" build-server shutdown >nul 2>&1
 popd
