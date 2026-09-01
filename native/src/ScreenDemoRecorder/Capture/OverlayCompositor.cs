@@ -1,8 +1,5 @@
-using System.Numerics;
 using System.Runtime.InteropServices;
 using ScreenDemoRecorder.Overlays;
-using ScreenDemoRecorder.Core.Models;
-using ScreenDemoRecorder.Core.Services;
 using System.Windows.Media.Imaging;
 using Vortice.Direct2D1;
 using Vortice.Direct3D11;
@@ -21,19 +18,12 @@ internal sealed class OverlayCompositor : IDisposable
     private ID2D1Bitmap1? bitmap;
     private ID2D1Bitmap1? blurSource;
     private ID2D1Effect? blurEffect;
-    private readonly LabelRaster? label;
-    private readonly KeystrokeRenderer? keys;
-    private readonly ClickRenderer? clicks;
-    private readonly Dictionary<string, ID2D1Bitmap1> keycaps = [];
-    private readonly Dictionary<MouseClickButton, ID2D1Bitmap1> clickTextures = [];
+    private readonly LabelRaster label;
     private readonly int frameWidth, frameHeight;
 
-    public OverlayCompositor(ID3D11Device graphicsDevice, LabelRaster? raster, KeystrokeRenderer? keystrokes,
-        ClickRenderer? mouseClicks, int width, int height)
+    public OverlayCompositor(ID3D11Device graphicsDevice, LabelRaster raster, int width, int height)
     {
         label = raster;
-        keys = keystrokes;
-        clicks = mouseClicks;
         frameWidth = width; frameHeight = height;
         try
         {
@@ -41,23 +31,16 @@ internal sealed class OverlayCompositor : IDisposable
             using var dxgi = graphicsDevice.QueryInterface<IDXGIDevice>();
             device = factory.CreateDevice(dxgi);
             context = device.CreateDeviceContext(DeviceContextOptions.None);
-            if (raster is not null)
+            bitmap = Upload(raster.Bitmap);
+            if (raster.BackgroundBlur > 0)
             {
-                bitmap = Upload(raster.Bitmap);
-                if (raster.BackgroundBlur > 0)
-                {
-                    blurSource = context.CreateBitmap(new SizeI(width, height), IntPtr.Zero, 0,
-                        new BitmapProperties1(new D2DPixelFormat(Format.B8G8R8A8_UNorm, D2DAlphaMode.Ignore),
-                            96, 96, BitmapOptions.None));
-                    blurEffect = new ID2D1Effect(context.CreateEffect(EffectGuids.GaussianBlur));
-                    blurEffect.SetInput(0, blurSource, true);
-                    blurEffect.SetValue((uint)GaussianBlurProperties.StandardDeviation, (float)raster.BackgroundBlur);
-                }
+                blurSource = context.CreateBitmap(new SizeI(width, height), IntPtr.Zero, 0,
+                    new BitmapProperties1(new D2DPixelFormat(Format.B8G8R8A8_UNorm, D2DAlphaMode.Ignore),
+                        96, 96, BitmapOptions.None));
+                blurEffect = new ID2D1Effect(context.CreateEffect(EffectGuids.GaussianBlur));
+                blurEffect.SetInput(0, blurSource, true);
+                blurEffect.SetValue((uint)GaussianBlurProperties.StandardDeviation, (float)raster.BackgroundBlur);
             }
-            if (keys is not null)
-                foreach (var cap in keys.Keycaps) keycaps.Add(cap.Key, Upload(cap.Value));
-            if (clicks is not null)
-                foreach (var texture in clicks.Textures) clickTextures.Add(texture.Key, Upload(texture.Value));
         }
         catch { Dispose(); throw; }
     }
@@ -75,7 +58,7 @@ internal sealed class OverlayCompositor : IDisposable
         finally { pinned.Free(); }
     }
 
-    public void Draw(ID3D11Texture2D frame, IReadOnlyList<VisibleKeystroke> entries, IReadOnlyList<VisibleClick> mouseClicks)
+    public void Draw(ID3D11Texture2D frame)
     {
         var drawing = context ?? throw new ObjectDisposedException(nameof(OverlayCompositor));
         using var surface = frame.QueryInterface<IDXGISurface>();
@@ -88,22 +71,15 @@ internal sealed class OverlayCompositor : IDisposable
             drawing.BeginDraw();
             drawing.PrimitiveBlend = PrimitiveBlend.SourceOver;
             drawing.PushAxisAlignedClip(new Vortice.RawRectF(0, 0, frameWidth, frameHeight), AntialiasMode.Aliased);
-            if (label is { BackgroundBlur: > 0 } && blurEffect is not null)
+            if (label.BackgroundBlur > 0 && blurEffect is not null)
             {
                 drawing.PushAxisAlignedClip(new Vortice.RawRectF(label.Container.X, label.Container.Y,
                     label.Container.Right, label.Container.Bottom), AntialiasMode.PerPrimitive);
                 drawing.DrawImage(blurEffect, InterpolationMode.Linear, CompositeMode.SourceOver);
                 drawing.PopAxisAlignedClip();
             }
-            if (label is not null) drawing.DrawImage(bitmap!, new Vector2(label.Bounds.X, label.Bounds.Y), InterpolationMode.NearestNeighbor, CompositeMode.SourceOver);
-            if (clicks is not null)
-            foreach (var click in clicks.Layout(mouseClicks))
-                drawing.DrawBitmap(clickTextures[click.Button], new Vortice.RawRectF((float)click.Bounds.Left, (float)click.Bounds.Top,
-                    (float)click.Bounds.Right, (float)click.Bounds.Bottom), (float)click.Opacity, InterpolationMode.Linear, null, null);
-            if (keys is not null)
-            foreach (var cap in keys.Layout(entries, frameWidth, frameHeight))
-                drawing.DrawBitmap(keycaps[cap.Key], new Vortice.RawRectF((float)cap.Bounds.Left, (float)cap.Bounds.Top,
-                    (float)cap.Bounds.Right, (float)cap.Bounds.Bottom), (float)cap.Opacity, InterpolationMode.Linear, null, null);
+            drawing.DrawImage(bitmap!, new System.Numerics.Vector2(label.Bounds.X, label.Bounds.Y),
+                InterpolationMode.NearestNeighbor, CompositeMode.SourceOver);
             drawing.PopAxisAlignedClip();
             drawing.EndDraw().CheckError();
         }
@@ -115,10 +91,6 @@ internal sealed class OverlayCompositor : IDisposable
         blurEffect?.Dispose(); blurEffect = null;
         blurSource?.Dispose(); blurSource = null;
         bitmap?.Dispose(); bitmap = null;
-        foreach (var cap in keycaps.Values) cap.Dispose();
-        keycaps.Clear();
-        foreach (var texture in clickTextures.Values) texture.Dispose();
-        clickTextures.Clear();
         context?.Dispose(); context = null;
         device?.Dispose(); device = null;
         factory?.Dispose(); factory = null;

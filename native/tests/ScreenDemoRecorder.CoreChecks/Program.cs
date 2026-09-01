@@ -74,6 +74,9 @@ static async Task CheckProfileOperationsAsync(string directory)
     profile.Output.KeepSourceVideo = true;
     profile.Output.OpenFolderAfterSave = true;
     profile.Overlays.Keystrokes.Enabled = true;
+    profile.Overlays.Desktop.ShowLabel = true;
+    profile.Overlays.Desktop.ShowKeystrokes = true;
+    profile.Overlays.Desktop.ShowMouseClicks = true;
     profile.Overlays.Label.Lines.Add(new LabelTextLine { Text = "Third row" });
     await store.UpdateActiveAsync(profile);
 
@@ -94,6 +97,8 @@ static async Task CheckProfileOperationsAsync(string directory)
     Require(restored.Capture is { Source: CaptureSource.Window, WindowTitle: "Example Document", WindowProcessName: "example", WindowClassName: "ExampleWindow" },
         "The selected window identity did not survive profile duplication and reload.");
     Require(restored.Overlays.Keystrokes.Enabled, "The keystroke overlay did not survive a round trip.");
+    Require(restored.Overlays.Desktop is { ShowLabel: true, ShowKeystrokes: true, ShowMouseClicks: true },
+        "Live desktop overlay settings did not survive a round trip.");
     Require(restored.Overlays.Label.Lines.Count == 2, "Universal label rows did not survive a round trip.");
 }
 

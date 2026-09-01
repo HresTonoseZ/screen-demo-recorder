@@ -19,6 +19,7 @@ public partial class MainWindow : Window
     private bool closeAllowed;
     private bool profileOperation;
     private RegionBoundary? boundary;
+    private DesktopOverlayWindow? desktopOverlay;
     private IReadOnlyList<DisplayInfo> displays = [];
     private DesktopWindowInfo? selectedWindow;
     internal bool PreviewMode { get; }
@@ -56,6 +57,7 @@ public partial class MainWindow : Window
                 StatusText.Text = "Display configuration changed. Finishing the recording…";
             }
             boundary?.Dispose(); boundary = null;
+            desktopOverlay?.Dispose(); desktopOverlay = null;
             loading = true;
             displays = NativeDesktop.Displays();
             DisplayComboBox.ItemsSource = displays;
@@ -101,6 +103,7 @@ public partial class MainWindow : Window
         }
         pendingSave?.Cancel(); pendingSave?.Dispose();
         boundary?.Dispose(); boundary = null;
+        desktopOverlay?.Dispose(); desktopOverlay = null;
         hotkeys?.Dispose(); hotkeys = null;
         DisposeTray();
         SystemEvents.DisplaySettingsChanged -= DisplaysChanged;
@@ -139,6 +142,9 @@ public partial class MainWindow : Window
         KeystrokesCheckBox.IsChecked = profile.Overlays.Keystrokes.Enabled;
         ClicksCheckBox.IsChecked = profile.Capture.HighlightClicks;
         BoundaryCheckBox.IsChecked = profile.Selection.KeepBoundaryVisible;
+        DesktopLabelCheckBox.IsChecked = profile.Overlays.Desktop.ShowLabel;
+        DesktopKeystrokesCheckBox.IsChecked = profile.Overlays.Desktop.ShowKeystrokes;
+        DesktopClicksCheckBox.IsChecked = profile.Overlays.Desktop.ShowMouseClicks;
         ApplicationThemeManager.Apply(profile.Application.Theme);
         Topmost = profile.Application.AlwaysOnTop;
         UpdateTrayState();
@@ -180,6 +186,9 @@ public partial class MainWindow : Window
         profile.Overlays.Keystrokes.Enabled = KeystrokesCheckBox.IsChecked == true;
         profile.Capture.HighlightClicks = ClicksCheckBox.IsChecked == true;
         profile.Selection.KeepBoundaryVisible = BoundaryCheckBox.IsChecked == true;
+        profile.Overlays.Desktop.ShowLabel = DesktopLabelCheckBox.IsChecked == true;
+        profile.Overlays.Desktop.ShowKeystrokes = DesktopKeystrokesCheckBox.IsChecked == true;
+        profile.Overlays.Desktop.ShowMouseClicks = DesktopClicksCheckBox.IsChecked == true;
         UpdateRecordLabel();
     }
 
@@ -540,6 +549,7 @@ public partial class MainWindow : Window
                 ClicksCheckBox.IsChecked = profile.Capture.HighlightClicks;
                 loading = false;
                 await SaveNowAsync();
+                RefreshBoundary();
             }
         }
         catch (Exception error) { ShowError(error, "Cannot Save Overlays"); }
@@ -564,6 +574,7 @@ public partial class MainWindow : Window
                     UpdateSourceControls();
                     UpdateAreaSummary();
                     await SaveNowAsync();
+                    RefreshBoundary();
                 }
             }
             catch (Exception error) { ShowError(error, "Window Selection Failed"); }
@@ -571,6 +582,7 @@ public partial class MainWindow : Window
         }
         if (DisplayComboBox.SelectedItem is not DisplayInfo display) return;
         boundary?.Dispose(); boundary = null;
+        desktopOverlay?.Dispose(); desktopOverlay = null;
         try
         {
             var selector = new RegionSelectorWindow(display, profile.Capture, profile.Selection);
@@ -606,24 +618,64 @@ public partial class MainWindow : Window
         ScheduleSave(); RefreshBoundary();
     }
 
+    private void DesktopOverlaySetting_Changed(object sender, RoutedEventArgs e)
+    {
+        if (loading) return;
+        ScheduleSave();
+        RefreshBoundary();
+    }
+
     private void RefreshBoundary()
     {
         boundary?.Dispose(); boundary = null;
-        if (PreviewMode || WindowSource.IsChecked == true || BoundaryCheckBox.IsChecked != true || DisplayComboBox.SelectedItem is not DisplayInfo display) return;
-        PixelRect area;
-        if (DisplaySource.IsChecked == true) area = new PixelRect(0, 0, display.Bounds.Width, display.Bounds.Height);
-        else if (RegionSource.IsChecked == true && profile.Capture.Region is { } r)
+        desktopOverlay?.Dispose(); desktopOverlay = null;
+        if (PreviewMode || !TryGetDesktopOverlayBounds(out var bounds)) return;
+
+        try
         {
-            area = new PixelRect(r.X, r.Y, r.Width, r.Height);
-            if (RegionGeometry.Fit(area, display.Bounds.Width, display.Bounds.Height, profile.Capture.RegionMinimumSize) != area)
-            {
-                StatusText.Text = "Saved region no longer fits. Select a new area."; return;
-            }
+            var live = profile.Overlays.Desktop;
+            if (live.ShowLabel || live.ShowKeystrokes || live.ShowMouseClicks)
+                desktopOverlay = new DesktopOverlayWindow(bounds, profile.Overlays, profile.Capture);
+
+            if (BoundaryCheckBox.IsChecked == true && WindowSource.IsChecked != true)
+                boundary = new RegionBoundary(bounds, recording is { IsStopped: false }
+                    ? profile.Selection.RecordingColor : profile.Selection.SelectionColor, profile.Selection.LineWidth);
         }
-        else return;
-        try { boundary = new RegionBoundary(display, area, recording is { IsStopped: false }
-            ? profile.Selection.RecordingColor : profile.Selection.SelectionColor, profile.Selection.LineWidth); }
-        catch (Exception error) { StatusText.Text = $"Cannot show boundary: {error.Message}"; }
+        catch (Exception error)
+        {
+            boundary?.Dispose(); boundary = null;
+            desktopOverlay?.Dispose(); desktopOverlay = null;
+            StatusText.Text = $"Cannot show desktop overlay: {error.Message}";
+        }
+    }
+
+    private bool TryGetDesktopOverlayBounds(out PixelRect bounds)
+    {
+        bounds = default;
+        if (WindowSource.IsChecked == true)
+        {
+            if (!RefreshSelectedWindow() || selectedWindow!.IsMinimized) return false;
+            bounds = selectedWindow.Bounds;
+            return true;
+        }
+
+        if (DisplayComboBox.SelectedItem is not DisplayInfo display) return false;
+        if (DisplaySource.IsChecked == true)
+        {
+            bounds = display.Bounds;
+            return true;
+        }
+
+        if (RegionSource.IsChecked != true || profile.Capture.Region is not { } region) return false;
+        var area = new PixelRect(region.X, region.Y, region.Width, region.Height);
+        if (RegionGeometry.Fit(area, display.Bounds.Width, display.Bounds.Height, profile.Capture.RegionMinimumSize) != area)
+        {
+            StatusText.Text = "Saved region no longer fits. Select a new area.";
+            return false;
+        }
+
+        bounds = new PixelRect(display.Bounds.X + area.X, display.Bounds.Y + area.Y, area.Width, area.Height);
+        return true;
     }
 
     private void ShowError(Exception error, string title)

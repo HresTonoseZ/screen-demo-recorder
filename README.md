@@ -7,7 +7,9 @@ Windows 11.
 
 A staged C#/.NET 10 rewrite is also available. The native preview records a
 display, region, or individual window to MP4 and exports GIF with labels and
-optional pressed-key overlays. It includes configurable global shortcuts,
+optional pressed-key and mouse-click overlays. It can keep the selected area
+boundary visible and show the label, pressed keys, and click highlights live on
+the desktop without intercepting input. It includes configurable global shortcuts,
 pause/resume, countdown, MP4/GIF resolution presets, automatic encoder fallback,
 export progress/cancellation, safe saving, profile transfer, recent recordings,
 themes and notification-area behavior. The feature list below describes the Python
@@ -207,6 +209,13 @@ timing, plus exact left/right click colors, stay in their own collapsed Advanced
 Per-Monitor V2 coordinates are kept in physical pixels; the build checks every
 connected display against Windows Graphics Capture and verifies synthetic
 100–200% viewport mappings, including monitors with negative desktop origins.
+
+For a one-click self-contained build, double-click `build-native.bat`. It checks
+for the required .NET SDK and offers to install a private current-user copy when
+needed. Before publishing, it stops build servers, closes only a previous preview
+running from `dist\native-preview`, removes that old output folder completely,
+and creates a clean replacement. Source files, profiles, and recordings are not
+deleted.
 
 Build and verify the self-contained preview with `.\build-native.ps1`, then run
 `dist\native-preview\ScreenDemoRecorder.exe`. Keep its adjacent files together.

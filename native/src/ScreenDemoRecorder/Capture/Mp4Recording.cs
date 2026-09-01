@@ -43,6 +43,7 @@ internal sealed class Mp4Recording
     private long nextFrameTicks;
     private readonly LabelRaster? label;
     private OverlayCompositor? compositor;
+    private DynamicOverlayCompositor? dynamicCompositor;
     private FrameScaler? scaler;
     private readonly KeystrokeRenderer? keyRenderer;
     private readonly ClickRenderer? clickRenderer;
@@ -138,13 +139,14 @@ internal sealed class Mp4Recording
         {
             abort.Token.ThrowIfCancellationRequested();
             output = new RecordingOutput(profile.Output, profile.Overlays.Label.Lines.FirstOrDefault(l => l.Enabled)?.Text ?? "Recording");
-            D3D11.D3D11CreateDevice(null, DriverType.Hardware, DeviceCreationFlags.BgraSupport,
-                [FeatureLevel.Level_11_1, FeatureLevel.Level_11_0], out device, out context).CheckError();
+            CreateGraphicsDevice(out device, out context);
             using var multithread = device.QueryInterface<ID3D11Multithread>();
             multithread.SetMultithreadProtected(true);
             frameCompletionQuery = device.CreateQuery(new QueryDescription(QueryType.Event, QueryFlags.None));
-            if (label is not null || keyRenderer is not null || clickRenderer is not null)
-                compositor = new OverlayCompositor(device, label, keyRenderer, clickRenderer, area.Width, area.Height);
+            if (label is not null)
+                compositor = new OverlayCompositor(device, label, area.Width, area.Height);
+            if (keyRenderer is not null || clickRenderer is not null)
+                dynamicCompositor = new DynamicOverlayCompositor(device, context, keyRenderer, clickRenderer, area.Width, area.Height);
             if (outputPlan.IsResized) scaler = new FrameScaler(device);
             using var captureDevice = GraphicsInterop.Wrap(device);
             using var pool = Direct3D11CaptureFramePool.CreateFreeThreaded(captureDevice,
@@ -265,7 +267,7 @@ internal sealed class Mp4Recording
             keyTimeline.Clear();
             clickTimeline.Clear();
             lock (sync) { finished = true; latest?.Dispose(); latest = null; abort.Dispose(); }
-            scaler?.Dispose(); compositor?.Dispose(); frameCompletionQuery?.Dispose(); context?.Dispose(); device?.Dispose(); output?.Dispose();
+            scaler?.Dispose(); dynamicCompositor?.Dispose(); compositor?.Dispose(); frameCompletionQuery?.Dispose(); context?.Dispose(); device?.Dispose(); output?.Dispose();
         }
     }
 
@@ -275,6 +277,23 @@ internal sealed class Mp4Recording
         video.FrameRate.Denominator = 1000;
         video.PixelAspectRatio.Numerator = 1;
         video.PixelAspectRatio.Denominator = 1;
+    }
+
+    private static void CreateGraphicsDevice(out ID3D11Device graphicsDevice, out ID3D11DeviceContext graphicsContext)
+    {
+        FeatureLevel[] levels =
+        [
+            FeatureLevel.Level_11_1,
+            FeatureLevel.Level_11_0,
+            FeatureLevel.Level_10_1,
+            FeatureLevel.Level_10_0,
+        ];
+        var result = D3D11.D3D11CreateDevice(null, DriverType.Hardware, DeviceCreationFlags.BgraSupport,
+            levels, out graphicsDevice, out graphicsContext);
+        if (result.Failure)
+            result = D3D11.D3D11CreateDevice(null, DriverType.Warp, DeviceCreationFlags.BgraSupport,
+                levels, out graphicsDevice, out graphicsContext);
+        result.CheckError();
     }
 
     private void FrameArrived(Direct3D11CaptureFramePool sender, object args)
@@ -359,7 +378,8 @@ internal sealed class Mp4Recording
         {
             if (pendingClicks.Reader.TryRead(out var click)) clickTimeline.Add(click.Position, click.Button, click.Time);
         }
-        compositor?.Draw(texture, keyTimeline.VisibleAt(time), clickTimeline.VisibleAt(time));
+        compositor?.Draw(texture);
+        dynamicCompositor?.Draw(texture, keyTimeline.VisibleAt(time), clickTimeline.VisibleAt(time));
         if (!outputPlan.IsResized)
         {
             WaitForFrameCommands();

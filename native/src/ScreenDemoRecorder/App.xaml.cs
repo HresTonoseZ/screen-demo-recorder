@@ -250,6 +250,14 @@ public partial class App : Application
                     if (!boundary.IsVisible || !boundary.HasExpectedBounds || !boundary.IsPassive)
                         throw new InvalidOperationException("The boundary is not visible, passive or correctly positioned.");
                 }
+                var liveProfile = store.GetActiveProfile();
+                liveProfile.Overlays.Desktop.ShowLabel = true;
+                var liveBounds = new PixelRect(display.Bounds.X + 100, display.Bounds.Y + 100, 640, 360);
+                using (var liveOverlay = new DesktopOverlayWindow(liveBounds, liveProfile.Overlays, liveProfile.Capture))
+                {
+                    if (!liveOverlay.IsVisible || !liveOverlay.HasExpectedBounds || !liveOverlay.IsPassive)
+                        throw new InvalidOperationException("The live desktop overlay is not visible, passive or correctly positioned.");
+                }
                 var selectorProfile = store.GetActiveProfile();
                 selectorProfile.Selection.HandleShape = SelectionHandleShape.Square;
                 selectorProfile.Selection.HandleSize = 22;
@@ -263,7 +271,7 @@ public partial class App : Application
                     throw new InvalidOperationException("WPF and Win32 disagree about the region-selector DPI.");
                 selector.Close(); editor.Close(); main.Close();
                 await File.WriteAllTextAsync(Path.Combine(smokeDirectory, "result.txt"),
-                    $"PASS: Per-Monitor V2/WPF-Win32 DPI agreement on every connected display, exact physical selector placement, WPF main window, recent-recording menu, light/dark theme resources, application behavior, selection appearance and advanced capture settings, notification-area lifecycle, searchable window selector, window-source summary, MP4 preset/custom validation, encoder fallback/recovery UI, GIF preset/custom validation and layout, inline/advanced overlay editor, label background blur and per-row shadows, mouse-click appearance and animation, shortcut assignment, Win32 hotkey registration/conflict/cleanup, stale-message rejection, countdown command routing, overlay rendering, region selector, visible passive boundary placement, profile persistence and transfer.\nDisplays: {dpiReport}.\nMain layout ready: {mainReadyMs} ms (in-process smoke check, not cold launch).\n");
+                    $"PASS: Per-Monitor V2/WPF-Win32 DPI agreement on every connected display, exact physical selector placement, WPF main window, recent-recording menu, light/dark theme resources, application behavior, selection appearance and advanced capture settings, notification-area lifecycle, searchable window selector, window-source summary, MP4 preset/custom validation, encoder fallback/recovery UI, GIF preset/custom validation and layout, inline/advanced overlay editor, label background blur and per-row shadows, mouse-click appearance and animation, shortcut assignment, Win32 hotkey registration/conflict/cleanup, stale-message rejection, countdown command routing, overlay rendering, region selector, visible passive boundary and live desktop overlay placement, profile persistence and transfer.\nDisplays: {dpiReport}.\nMain layout ready: {mainReadyMs} ms (in-process smoke check, not cold launch).\n");
                 Shutdown(0);
                 return;
             }

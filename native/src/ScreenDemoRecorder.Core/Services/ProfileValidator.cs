@@ -61,6 +61,7 @@ public static class ProfileValidator
         if (profile.Overlays.Label is null) throw new InvalidDataException("Label settings are missing.");
         if (profile.Overlays.Keystrokes is null) throw new InvalidDataException("Keystroke settings are missing.");
         if (profile.Overlays.Clicks is null) throw new InvalidDataException("Mouse-click settings are missing.");
+        profile.Overlays.Desktop ??= new DesktopOverlaySettings();
 
         profile.Capture.DisplayIndex = Math.Max(1, profile.Capture.DisplayIndex);
         profile.Capture.WindowTitle = OptionalText(profile.Capture.WindowTitle);

@@ -54,9 +54,15 @@ set "NUGET_HTTP_CACHE_PATH=%APP_TOOL_DIR%\NuGet\v3-cache"
 set "PSModuleAnalysisCachePath=%APP_TOOL_DIR%\PowerShell\ModuleAnalysisCache"
 
 pushd "%~dp0"
-"%DOTNET_EXE%" publish "native\src\ScreenDemoRecorder\ScreenDemoRecorder.csproj" -c Release -r win-x64 --self-contained true -p:PublishSingleFile=false -o "dist\native-preview" --nologo --disable-build-servers
+call :shutdown_build_servers
+echo Preparing a clean output folder...
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\prepare-native-output.ps1" -OutputDirectory "%~dp0dist\native-preview"
 set "BUILD_EXIT=%ERRORLEVEL%"
-"%DOTNET_EXE%" build-server shutdown >nul 2>&1
+if "%BUILD_EXIT%"=="0" (
+    "%DOTNET_EXE%" publish "native\src\ScreenDemoRecorder\ScreenDemoRecorder.csproj" -c Release -r win-x64 --self-contained true -p:PublishSingleFile=false -o "dist\native-preview" --nologo --disable-build-servers
+    set "BUILD_EXIT=!ERRORLEVEL!"
+)
+call :shutdown_build_servers
 popd
 cd /d "%TEMP%"
 
@@ -78,6 +84,17 @@ if defined DOTNET_EXE exit /b 0
 if not exist "%~1" exit /b 0
 if not exist "%~dp1sdk\%SDK_VERSION%\dotnet.dll" exit /b 0
 set "DOTNET_EXE=%~1"
+exit /b 0
+
+:shutdown_build_servers
+call :shutdown_one "%APP_DOTNET_DIR%\dotnet.exe"
+call :shutdown_one "%LOCALAPPDATA%\Microsoft\dotnet\dotnet.exe"
+call :shutdown_one "%ProgramFiles%\dotnet\dotnet.exe"
+exit /b 0
+
+:shutdown_one
+if not exist "%~1" exit /b 0
+"%~1" build-server shutdown >nul 2>&1
 exit /b 0
 
 :cancelled

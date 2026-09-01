@@ -213,6 +213,17 @@ public sealed class OverlaySettings
     public KeystrokeOverlaySettings Keystrokes { get; set; } = new();
 
     public ClickOverlaySettings Clicks { get; set; } = new();
+
+    public DesktopOverlaySettings Desktop { get; set; } = new();
+}
+
+public sealed class DesktopOverlaySettings
+{
+    public bool ShowLabel { get; set; }
+
+    public bool ShowKeystrokes { get; set; }
+
+    public bool ShowMouseClicks { get; set; }
 }
 
 public sealed class LabelOverlaySettings

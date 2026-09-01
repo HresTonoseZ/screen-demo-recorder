@@ -13,12 +13,12 @@ internal sealed record LabelRaster(BitmapSource Bitmap, PixelRect Bounds, PixelR
 
 internal static class LabelRenderer
 {
-    public static LabelRaster? Render(LabelOverlaySettings settings, int frameWidth, int frameHeight)
+    public static LabelRaster? Render(LabelOverlaySettings settings, int frameWidth, int frameHeight, bool forceEnabled = false)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(frameWidth);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(frameHeight);
         var lines = settings.Lines.Where(line => line.Enabled && !string.IsNullOrWhiteSpace(line.Text)).ToArray();
-        if (!settings.Enabled || lines.Length == 0) return null;
+        if ((!settings.Enabled && !forceEnabled) || lines.Length == 0) return null;
 
         var width = Math.Clamp(settings.Width, 1, frameWidth);
         var paddingX = Math.Min(settings.PaddingX + settings.BorderWidth, (width - 1) / 2);
