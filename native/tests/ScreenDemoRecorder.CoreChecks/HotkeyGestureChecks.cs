@@ -7,7 +7,7 @@ internal static class HotkeyGestureChecks
     {
         Require(HotkeyGesture.TryParse("<control>+<shift>+<f9>", out var migrated, out _) && migrated.ToString() == "Ctrl+Shift+F9", "Migrated shortcut syntax was not accepted.");
         Require(HotkeyGesture.TryParse("alt+page down", out var navigation, out _) && navigation.ToString() == "Alt+PageDown", "Navigation shortcut parsing changed.");
-        foreach (var value in new[] { "A", "Shift+A", "F12", "Ctrl+F12", "Ctrl+Shift", "Ctrl+S+C", "Ctrl+Ctrl+S", "Ctrl++S", "Unknown+S" })
+        foreach (var value in new[] { "A", "Shift+A", "F12", "Ctrl+F12", "Ctrl+Shift", "Ctrl+LeftShift", "Ctrl+LeftWin", "Ctrl+S+C", "Ctrl+Ctrl+S", "Ctrl++S", "Unknown+S" })
             Require(!HotkeyGesture.TryParse(value, out _, out _), $"Invalid or reserved shortcut accepted: {value}");
         foreach (var key in KeystrokeFilter.Names.Keys)
         foreach (var modifiers in new[] { KeyModifiers.Control, KeyModifiers.Alt | KeyModifiers.Shift, KeyModifiers.Control | KeyModifiers.Windows })

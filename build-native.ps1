@@ -17,9 +17,13 @@ $env:DOTNET_CLI_HOME = Join-Path $PSScriptRoot '.dotnet-home'
 $env:NUGET_PACKAGES = Join-Path $PSScriptRoot '.nuget-packages'
 Push-Location $PSScriptRoot
 try {
-    & $DotNet build native\ScreenDemoRecorder.sln -c $Configuration --nologo --disable-build-servers
+    # A unique test output keeps a failed check from locking the next verification build.
+    $verificationId = 'verification-' + [Guid]::NewGuid().ToString('N')
+    $verificationBase = "bin\$verificationId\"
+    & $DotNet build native\ScreenDemoRecorder.sln -c $Configuration --nologo --disable-build-servers `
+        "-p:BaseOutputPath=$verificationBase"
     if ($LASTEXITCODE -ne 0) { throw 'Native solution build failed.' }
-    & $DotNet "native\tests\ScreenDemoRecorder.CoreChecks\bin\$Configuration\net10.0\ScreenDemoRecorder.CoreChecks.dll"
+    & $DotNet "native\tests\ScreenDemoRecorder.CoreChecks\$verificationBase$Configuration\net10.0\ScreenDemoRecorder.CoreChecks.dll"
     if ($LASTEXITCODE -ne 0) { throw 'Native core checks failed.' }
     & $DotNet publish native\src\ScreenDemoRecorder\ScreenDemoRecorder.csproj -c $Configuration -r win-x64 --self-contained true -p:PublishSingleFile=false -o dist\native-preview --nologo --disable-build-servers
     if ($LASTEXITCODE -ne 0) { throw 'Native publishing failed.' }

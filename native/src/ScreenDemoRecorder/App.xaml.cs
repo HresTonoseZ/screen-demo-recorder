@@ -245,9 +245,10 @@ public partial class App : Application
                 await RenderAsync(portrait, Path.Combine(smokeDirectory, "overlays-portrait.png"), 904, 612);
                 portrait.Close();
                 var display = NativeDesktop.Displays().First();
-                using (var boundary = new RegionBoundary(display, new PixelRect(100, 100, 640, 360), "#7B61FFFF", 2, show: false))
+                using (var boundary = new RegionBoundary(display, new PixelRect(100, 100, 640, 360), "#7B61FFFF", 2))
                 {
-                    if (!boundary.IsExcluded) throw new InvalidOperationException("Boundary capture exclusion failed.");
+                    if (!boundary.IsVisible || !boundary.HasExpectedBounds || !boundary.IsPassive)
+                        throw new InvalidOperationException("The boundary is not visible, passive or correctly positioned.");
                 }
                 var selectorProfile = store.GetActiveProfile();
                 selectorProfile.Selection.HandleShape = SelectionHandleShape.Square;
@@ -262,7 +263,7 @@ public partial class App : Application
                     throw new InvalidOperationException("WPF and Win32 disagree about the region-selector DPI.");
                 selector.Close(); editor.Close(); main.Close();
                 await File.WriteAllTextAsync(Path.Combine(smokeDirectory, "result.txt"),
-                    $"PASS: Per-Monitor V2/WPF-Win32 DPI agreement on every connected display, exact physical selector placement, WPF main window, recent-recording menu, light/dark theme resources, application behavior, selection appearance and advanced capture settings, notification-area lifecycle, searchable window selector, window-source summary, MP4 preset/custom validation, encoder fallback/recovery UI, GIF preset/custom validation and layout, inline/advanced overlay editor, label background blur and per-row shadows, mouse-click appearance and animation, shortcut assignment, Win32 hotkey registration/conflict/cleanup, stale-message rejection, countdown command routing, overlay rendering, region selector, verified boundary exclusion, profile persistence and transfer.\nDisplays: {dpiReport}.\nMain layout ready: {mainReadyMs} ms (in-process smoke check, not cold launch).\n");
+                    $"PASS: Per-Monitor V2/WPF-Win32 DPI agreement on every connected display, exact physical selector placement, WPF main window, recent-recording menu, light/dark theme resources, application behavior, selection appearance and advanced capture settings, notification-area lifecycle, searchable window selector, window-source summary, MP4 preset/custom validation, encoder fallback/recovery UI, GIF preset/custom validation and layout, inline/advanced overlay editor, label background blur and per-row shadows, mouse-click appearance and animation, shortcut assignment, Win32 hotkey registration/conflict/cleanup, stale-message rejection, countdown command routing, overlay rendering, region selector, visible passive boundary placement, profile persistence and transfer.\nDisplays: {dpiReport}.\nMain layout ready: {mainReadyMs} ms (in-process smoke check, not cold launch).\n");
                 Shutdown(0);
                 return;
             }

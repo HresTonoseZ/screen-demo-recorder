@@ -28,11 +28,23 @@ internal static class KeystrokeChecks
         settings.DisplayMode = KeystrokeDisplayMode.AllKeys;
         Check(filter.Filter(0x41, KeyModifiers.None)?.Identity == "A", "Explicit all-keys mode is not working.");
         settings.HideNormalTyping = true;
-        Check(filter.Filter(0x41, KeyModifiers.None) is null, "Hide normal typing must override all-keys mode.");
+        foreach (var key in new[] { 0x4E, 0x53, 0x41, 0x44, 0x45 })
+            Check(filter.Filter(key, KeyModifiers.None) is not null, "All-keys mode dropped an unmodified letter.");
+        Check(filter.Filter(0x24, KeyModifiers.None)?.Identity == "Home", "All-keys mode dropped Home.");
+        Check(filter.Filter(0x78, KeyModifiers.None)?.Identity == "F9", "All-keys mode dropped F9.");
+        Check(filter.Filter(0x64, KeyModifiers.None)?.Identity == "Num 4", "All-keys mode dropped a numpad key.");
+        Check(filter.Filter(0xA0, KeyModifiers.Shift)?.Identity == "Left Shift", "All-keys mode dropped a standalone modifier.");
+        Check(filter.Filter(0x4E, KeyModifiers.Control | KeyModifiers.Alt | KeyModifiers.Shift)?.Identity == "Ctrl+Alt+Shift+N",
+            "All-keys mode did not preserve a multi-modifier chord.");
+        Check(filter.Filter(0x41, KeyModifiers.Control | KeyModifiers.Alt, altGr: true)?.Identity == "Ctrl+Alt+A",
+            "All-keys mode dropped an AltGr key press.");
+        Check(filter.Filter(0xE8, KeyModifiers.None)?.Identity == "VK E8",
+            "All-keys mode dropped an uncommon keyboard virtual key.");
         for (var key = 0; key < 256; key++)
         {
             var chord = filter.Filter(key, KeyModifiers.Control);
-            Check(chord is null || chord.Keys.All(KeystrokeFilter.KeycapNames.Contains), "A filtered key has no renderable keycap.");
+            Check(chord is null || chord.Keys.All(keyName => KeystrokeFilter.KeycapNames.Contains(keyName) || keyName.StartsWith("VK ", StringComparison.Ordinal)),
+                "A filtered key has no renderable keycap.");
         }
         var timeline = new KeystrokeTimeline(settings);
         var save = new KeyChord(["Ctrl", "S"]);

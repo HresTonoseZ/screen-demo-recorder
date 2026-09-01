@@ -51,7 +51,10 @@ for the Python recorder. No Python source or working executable has been removed
   or sidecar is saved, and session data is cleared at completion. Shortcuts-only
   is the default: Ctrl/Alt/Win combinations, function keys and Shift navigation.
   Normal typing, Shift typing and conservative Right-Alt/AltGr text filtering
-  protect the default mode. Held-key autorepeats do not flood the overlay.
+  protect the default mode. All Keys is unconditional once selected: ordinary
+  letters, navigation, function, numpad, modifier and uncommon virtual keys are
+  all rendered, including multi-modifier chords. Held-key autorepeats do not flood
+  the overlay.
 - Opt-in mouse-click visualization in MP4 and GIF. A low-level mouse hook runs only
   during recording; left and right clicks become colored rings at the exact captured
   pointer position. Display, region and moving-window targets map global coordinates
@@ -75,11 +78,14 @@ for the Python recorder. No Python source or working executable has been removed
   screen-to-capture mapping covers negative virtual-desktop origins and regions on
   monitors positioned left of or above the primary display. Service windows retain
   exact physical bounds when WPF receives a DPI change.
-- Persistent, click-through boundary. Its owned windows and the main window use
-  Windows capture exclusion. The native smoke check verifies accepted affinity
-  only while DWM composition is active, exact boundary window bounds, and the
-  returned `WDA_EXCLUDEFROMCAPTURE` state. Monitor-capture exclusion still needs
-  a manual check against an encoded desktop recording.
+- Persistent topmost boundary that remains visible while the application is
+  running and the profile option is enabled, including while the controller is
+  hidden in the notification area. Four passive, no-activate, click-through strip
+  windows retain exact physical bounds and cannot intercept Windows input. Capture
+  exclusion is requested independently for each strip; if Windows rejects display
+  affinity, the visual boundary remains available instead of failing. The native
+  smoke check verifies visibility, passive styles and exact placement. Encoded
+  monitor-capture exclusion still needs a manual check.
 - Region, display and individual-window recording through Windows.Graphics.Capture, GPU cropping
   with Direct3D 11, and H.264 MP4 encoding through Windows MediaTranscoder. An event-query
   completion barrier ensures that GPU crop, overlay and resize commands finish before each
@@ -231,8 +237,8 @@ mapping are not connected.
 Labels are burned into MP4 when Show label in video is enabled. Enable Show
 pressed keys for keyboard overlays; edit their appearance under Edit overlays >
 Pressed keys. Keys are global across applications while recording, not limited
-to the selected capture rectangle. All keys with Hide normal typing turned off
-can expose sensitive input; password fields are not detected. Keycaps describe
+to the selected capture rectangle. Selecting All keys always includes ordinary
+typing and can expose sensitive input; password fields are not detected. Keycaps describe
 physical keys, not composed text or IME output. Right Alt is conservatively treated
 as AltGr for text privacy. Recorder control shortcuts are hidden from the overlay
 by default. Custom key style currently uses the dark appearance. Enable Highlight
@@ -275,7 +281,7 @@ Normal builds inspect the MSI database and verify its version, scope, embedded
 CAB, upgrade rows, shortcut, 483 files, 485 components and payload byte total.
 `-VerifyPackage` additionally performs a non-registering administrative extraction
 under `build/native-installer-extract-<id>` and compares all payload SHA-256 hashes.
-The verified 1.0.0 package is 60.90 MiB for a 197.75 MiB self-contained payload.
+The verified 1.0.2 package is 60.91 MiB for a 197.75 MiB self-contained payload.
 It is not code-signed yet.
 
 ## Next milestones
@@ -299,6 +305,7 @@ with MOD_NOREPEAT. Actual physical-key delivery across application focus changes
 keyboard layouts and elevated applications still needs manual verification.
 Physical overlay placement follows the Windows [Per-Monitor DPI guidance](https://learn.microsoft.com/en-us/windows/win32/hidpi/wm-dpichanged),
 and recorder controls request the documented [`WDA_EXCLUDEFROMCAPTURE`](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setwindowdisplayaffinity)
-mode. The build verifies the reported state without recording the user's desktop.
+mode. Capture exclusion remains mandatory for recorder controls and best-effort for
+the passive boundary, whose visibility must not depend on display-affinity support.
 GIF conversion follows the [Media Foundation Source Reader workflow](https://learn.microsoft.com/en-us/windows/win32/medfound/processing-media-data-with-the-source-reader)
 and the Windows [WIC GIF metadata schema](https://learn.microsoft.com/en-us/windows/win32/wic/-wic-native-image-format-metadata-queries).

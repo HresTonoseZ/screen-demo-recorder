@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "screen-demo-recorder"
-version = "1.0.0"
+version = "1.0.2"
 description = "Record Windows monitors or regions and build configurable animated GIF demonstrations"
 readme = "README.md"
 requires-python = ">=3.10"

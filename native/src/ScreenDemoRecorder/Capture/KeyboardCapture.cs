@@ -70,9 +70,9 @@ internal sealed class KeyboardCapture : IAsyncDisposable
                     if (isDown && !repeat)
                     {
                         var modifiers = KeyModifiers.None;
-                        if (down[0xA2] || down[0xA3]) modifiers |= KeyModifiers.Control;
-                        if (down[0xA4] || down[0xA5]) modifiers |= KeyModifiers.Alt;
-                        if (down[0xA0] || down[0xA1]) modifiers |= KeyModifiers.Shift;
+                        if (down[0x11] || down[0xA2] || down[0xA3]) modifiers |= KeyModifiers.Control;
+                        if (down[0x12] || down[0xA4] || down[0xA5]) modifiers |= KeyModifiers.Alt;
+                        if (down[0x10] || down[0xA0] || down[0xA1]) modifiers |= KeyModifiers.Shift;
                         if (down[0x5B] || down[0x5C]) modifiers |= KeyModifiers.Windows;
                         pressed(key, modifiers, down[0xA5]);
                     }

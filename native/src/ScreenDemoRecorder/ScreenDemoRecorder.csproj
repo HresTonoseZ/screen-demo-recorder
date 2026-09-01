@@ -8,7 +8,7 @@
     <ImplicitUsings>disable</ImplicitUsings>
     <AssemblyName>ScreenDemoRecorder</AssemblyName>
     <RootNamespace>ScreenDemoRecorder</RootNamespace>
-    <Version>1.0.0</Version>
+    <Version>1.0.2</Version>
     <ApplicationManifest>app.manifest</ApplicationManifest>
   </PropertyGroup>
   <ItemGroup>

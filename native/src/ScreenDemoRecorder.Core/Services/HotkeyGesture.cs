@@ -21,7 +21,7 @@ public readonly record struct HotkeyGesture(int VirtualKey, KeyModifiers Modifie
     {
         gesture = default;
         error = "Choose a letter, number, function key or navigation key.";
-        if (!KeystrokeFilter.Names.ContainsKey(virtualKey)) return false;
+        if (!KeystrokeFilter.Names.ContainsKey(virtualKey) || IsModifierKey(virtualKey)) return false;
         if ((modifiers & ~(KeyModifiers.Control | KeyModifiers.Alt | KeyModifiers.Shift | KeyModifiers.Windows)) != 0) return false;
         if (virtualKey == 0x7B) { error = "F12 is reserved by Windows for debugging. Choose another key."; return false; }
         if ((modifiers & (KeyModifiers.Control | KeyModifiers.Alt | KeyModifiers.Windows)) == 0 && virtualKey is not (>= 0x70 and <= 0x87))
@@ -98,6 +98,9 @@ public readonly record struct HotkeyGesture(int VirtualKey, KeyModifiers Modifie
         0xAF => "VolumeUp", 0xAE => "VolumeDown", 0xBB => "Plus", 0xBD => "Minus",
         _ => KeystrokeFilter.Names[key].Replace(" ", ""),
     };
+
+    private static bool IsModifierKey(int key) => key is
+        0x10 or 0x11 or 0x12 or 0x5B or 0x5C or 0xA0 or 0xA1 or 0xA2 or 0xA3 or 0xA4 or 0xA5;
 
     private static readonly Dictionary<string, int> KeysByName = KeystrokeFilter.Names.Keys.ToDictionary(key => KeyName(key).ToUpperInvariant(), key => key);
 }

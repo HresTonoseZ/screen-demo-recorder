@@ -609,7 +609,7 @@ public partial class MainWindow : Window
     private void RefreshBoundary()
     {
         boundary?.Dispose(); boundary = null;
-        if (PreviewMode || WindowSource.IsChecked == true || !IsVisible || BoundaryCheckBox.IsChecked != true || DisplayComboBox.SelectedItem is not DisplayInfo display) return;
+        if (PreviewMode || WindowSource.IsChecked == true || BoundaryCheckBox.IsChecked != true || DisplayComboBox.SelectedItem is not DisplayInfo display) return;
         PixelRect area;
         if (DisplaySource.IsChecked == true) area = new PixelRect(0, 0, display.Bounds.Width, display.Bounds.Height);
         else if (RegionSource.IsChecked == true && profile.Capture.Region is { } r)

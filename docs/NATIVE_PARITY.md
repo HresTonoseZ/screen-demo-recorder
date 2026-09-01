@@ -31,7 +31,7 @@ settings or recording commands.
 | Font file path | Complete; native rendering resolves `.ttf`/`.otf` metadata as a WPF font family | Label renderer smoke check |
 | Caption colors, padding, border, blur, container shadow, text stroke, and per-row shadow | Complete | Renderer pixels, bounds, profile transfer, UI validation, and encoded-frame parity |
 | Badge / `DEMO` capsule | Intentionally retired | Migration and schema checks assert that no badge property survives |
-| Region-line, handle, dimming, and dimension appearance | Complete and expanded with a separate recording color and persistent boundary | Profile migration, selection settings smoke check, and capture-exclusion checks |
+| Region-line, handle, dimming, and dimension appearance | Complete and expanded with a separate recording color and persistent passive boundary | Profile migration, selection settings smoke check, passive-style and physical-placement checks |
 | Profiles: switch, duplicate, rename, delete, reset, import, and export | Complete with atomic writes and strict schema validation | Dependency-free profile-store checks |
 | Theme, always-on-top, tray behavior, and close lifecycle | Complete | WPF theme, notification-area, close, and profile checks |
 | Failed/cancelled recording and GIF processing | Expanded with recoverable partial MP4 handling, progress, and cancellation | Recording-output, recovery-window, real recording, and GIF smoke checks |
@@ -68,8 +68,8 @@ Run the installer database and byte-for-byte extraction checks with:
   applications are focused, including at least one non-English keyboard layout.
 - Confirm selection, boundary, controller, and overlay placement on a real
   mixed-DPI multi-monitor arrangement.
-- Record a full display and confirm the excluded boundary/controller do not appear
-  in the encoded output.
+- Record a full display and confirm the controller and, where Windows accepts
+  boundary display affinity, the boundary do not appear in the encoded output.
 - Install, update, launch, and uninstall the MSI on a clean Windows user profile.
 - Sign the release executable and MSI before public distribution.
 

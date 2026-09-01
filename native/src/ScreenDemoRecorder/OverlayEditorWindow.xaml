@@ -2,7 +2,7 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Overlay Editor"
-        Width="920"
+        Width="960"
         Height="650"
         MinWidth="780"
         MinHeight="560"
@@ -17,7 +17,7 @@
         </Grid.RowDefinitions>
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="*" />
-            <ColumnDefinition Width="310" />
+            <ColumnDefinition Width="340" />
         </Grid.ColumnDefinitions>
 
         <Grid Grid.Row="0" Grid.Column="0" Margin="18">
@@ -54,7 +54,7 @@
         <Border Grid.Row="0" Grid.Column="1" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1,0,0,0">
             <TabControl Background="Transparent" BorderThickness="0" Margin="12">
                 <TabItem Header="Label">
-                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                         <StackPanel Margin="4,14,4,4">
                             <CheckBox x:Name="LabelEnabledCheckBox" Content="Show label" Margin="0,0,0,14" Checked="LabelSetting_Changed" Unchecked="LabelSetting_Changed" />
                             <TextBlock Text="Style" Foreground="{DynamicResource MutedBrush}" Margin="0,0,0,5" />
@@ -73,7 +73,8 @@
                                 <Button Grid.Column="1" Content="Add row" Padding="9,4" Click="AddLine_Click" />
                             </Grid>
                             <ListBox x:Name="LabelLinesEditor" Background="Transparent" BorderThickness="0" Padding="0"
-                                     SelectionChanged="LabelLinesEditor_SelectionChanged" HorizontalContentAlignment="Stretch">
+                                     SelectionChanged="LabelLinesEditor_SelectionChanged" HorizontalContentAlignment="Stretch"
+                                     ScrollViewer.HorizontalScrollBarVisibility="Disabled">
                                 <ListBox.ItemContainerStyle>
                                     <Style TargetType="ListBoxItem">
                                         <Setter Property="Padding" Value="4" />
@@ -97,14 +98,20 @@
                                             <CheckBox IsChecked="{Binding Enabled}" Margin="0,0,7,0" Click="LineEnabled_Click" />
                                             <TextBox Grid.Column="1" Text="{Binding Text, UpdateSourceTrigger=PropertyChanged}" TextChanged="LineText_Changed" TextWrapping="Wrap" AcceptsReturn="True" MaxHeight="100" VerticalScrollBarVisibility="Auto" />
                                             <Button Grid.Column="2" Content="×" Width="34" Margin="6,0,0,0" Click="RemoveLine_Click" />
-                                            <StackPanel Grid.Row="1" Grid.ColumnSpan="3" Orientation="Horizontal" Margin="0,6,0,0">
+                                            <Grid Grid.Row="1" Grid.ColumnSpan="3" Margin="0,6,0,0">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
                                                 <Button Content="A−" Tag="-2" Padding="5,3" Click="LineSize_Click" ToolTip="Smaller text" />
-                                                <Button Content="A+" Tag="2" Padding="5,3" Margin="3,0,6,0" Click="LineSize_Click" ToolTip="Larger text" />
-                                                <CheckBox Content="B" FontWeight="Bold" IsChecked="{Binding IsBold}" Click="LineEnabled_Click" Margin="0,0,8,0" />
-                                                <CheckBox Content="I" FontStyle="Italic" IsChecked="{Binding IsItalic}" Click="LineEnabled_Click" Margin="0,0,8,0" />
-                                                <Button Content="↑" Tag="-1" Padding="5,3" Click="MoveLine_Click" ToolTip="Move row up" />
-                                                <Button Content="↓" Tag="1" Padding="5,3" Margin="3,0,0,0" Click="MoveLine_Click" ToolTip="Move row down" />
-                                            </StackPanel>
+                                                <Button Grid.Column="1" Content="A+" Tag="2" Padding="5,3" Margin="3,0,6,0" Click="LineSize_Click" ToolTip="Larger text" />
+                                                <CheckBox Grid.Column="2" Content="B" FontWeight="Bold" IsChecked="{Binding IsBold}" Click="LineEnabled_Click" Margin="0,0,8,0" />
+                                                <CheckBox Grid.Column="3" Content="I" FontStyle="Italic" IsChecked="{Binding IsItalic}" Click="LineEnabled_Click" />
+                                                <Button Grid.Column="5" Content="↑" Tag="-1" Padding="5,3" Click="MoveLine_Click" ToolTip="Move row up" />
+                                                <Button Grid.Column="6" Content="↓" Tag="1" Padding="5,3" Margin="3,0,0,0" Click="MoveLine_Click" ToolTip="Move row down" />
+                                            </Grid>
                                             <Expander Grid.Row="2" Grid.ColumnSpan="3" Header="Text style" Margin="0,5,0,0">
                                                 <StackPanel Margin="0,6,0,0">
                                                     <ComboBox IsEditable="True" Text="{Binding FontFamily, UpdateSourceTrigger=LostFocus}" LostKeyboardFocus="LineStyle_Changed" SelectionChanged="LineStyle_Changed" ToolTip="Font family or a .ttf/.otf file path">
@@ -115,11 +122,11 @@
                                                     <ComboBox SelectedValuePath="Tag" SelectedValue="{Binding Alignment}" SelectionChanged="LineStyle_Changed" Margin="0,5,0,5">
                                                         <ComboBoxItem Content="Left aligned" Tag="left" /><ComboBoxItem Content="Centered" Tag="center" /><ComboBoxItem Content="Right aligned" Tag="right" />
                                                     </ComboBox>
-                                                    <StackPanel Orientation="Horizontal">
+                                                    <UniformGrid Columns="3">
                                                         <Button Content="White" Tag="#FFFFFFFF" Padding="6,3" Click="LineColor_Click" />
                                                         <Button Content="Dark" Tag="#17191EFF" Padding="6,3" Margin="4,0,0,0" Click="LineColor_Click" />
                                                         <Button Content="Yellow" Tag="#FFDA88FF" Padding="6,3" Margin="4,0,0,0" Click="LineColor_Click" />
-                                                    </StackPanel>
+                                                    </UniformGrid>
                                                     <TextBlock Text="Exact text color" Foreground="{DynamicResource MutedBrush}" Margin="0,8,0,3" />
                                                     <TextBox Text="{Binding Color, Mode=OneWay}" Tag="Color" LostKeyboardFocus="LineExactColor_Changed" ToolTip="#RRGGBB or #RRGGBBAA" />
                                                     <TextBlock Text="{Binding StrokeWidth, StringFormat=Outline: {0:0} px}" Foreground="{DynamicResource MutedBrush}" Margin="0,8,0,0" />
@@ -227,7 +234,8 @@
                             <TextBlock Text="{Binding ElementName=KeystrokeStackSlider, Path=Value, StringFormat=Recent shortcuts: {0:0}}" Foreground="{DynamicResource MutedBrush}" />
                             <Slider x:Name="KeystrokeStackSlider" Minimum="1" Maximum="10" TickFrequency="1" IsSnapToTickEnabled="True" ValueChanged="KeystrokeSetting_Changed" Margin="0,3,0,12" />
                             <CheckBox x:Name="MergeCombinationsCheckBox" Content="Merge quick repeats" Margin="0,0,0,9" Checked="KeystrokeSetting_Changed" Unchecked="KeystrokeSetting_Changed" />
-                            <CheckBox x:Name="HideTypingCheckBox" Content="Hide normal typing" Margin="0,0,0,9" Checked="KeystrokeSetting_Changed" Unchecked="KeystrokeSetting_Changed" />
+                            <TextBlock Text="All keys includes ordinary typing. Use Non-text keys or Shortcuts only when typed text must stay private."
+                                       TextWrapping="Wrap" Foreground="{DynamicResource MutedBrush}" Margin="0,0,0,9" />
                             <CheckBox x:Name="HideRecorderHotkeysCheckBox" Content="Hide recorder control shortcuts" Margin="0,0,0,14" Checked="KeystrokeSetting_Changed" Unchecked="KeystrokeSetting_Changed" />
                             <Expander x:Name="AdvancedKeystrokeExpander" Header="Advanced timing and opacity" Margin="0,0,0,12">
                                 <StackPanel Margin="0,7,0,0">

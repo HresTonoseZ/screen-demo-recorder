@@ -12,22 +12,24 @@ internal sealed record KeystrokeRaster(BitmapSource Bitmap, Rect Bounds);
 
 internal sealed class KeystrokeRenderer
 {
-    public IReadOnlyDictionary<string, BitmapSource> Keycaps { get; }
+    private readonly Dictionary<string, BitmapSource> keycaps;
+    public IReadOnlyDictionary<string, BitmapSource> Keycaps => keycaps;
     private readonly KeystrokeOverlaySettings settings;
 
     public KeystrokeRenderer(KeystrokeOverlaySettings style, IEnumerable<string>? keys = null)
     {
         settings = style;
-        Keycaps = (keys ?? KeystrokeFilter.KeycapNames).Distinct().ToDictionary(key => key, key => RenderKeycap(key, style));
+        keycaps = (keys ?? KeystrokeFilter.KeycapNames).Distinct().ToDictionary(key => key, key => RenderKeycap(key, style));
     }
 
     public KeycapPlacement[] Layout(IReadOnlyList<VisibleKeystroke> entries, int width, int height)
     {
         if (entries.Count == 0) return [];
+        foreach (var key in entries.SelectMany(entry => entry.Chord.Keys)) EnsureKeycap(key);
         var gap = 6 * settings.Scale;
         var rowGap = 8 * settings.Scale;
-        var rowHeight = Keycaps.Values.First().PixelHeight;
-        var widths = entries.Select(entry => entry.Chord.Keys.Sum(key => Keycaps[key].PixelWidth) + (entry.Chord.Keys.Length - 1) * gap).ToArray();
+        var rowHeight = keycaps.Values.First().PixelHeight;
+        var widths = entries.Select(entry => entry.Chord.Keys.Sum(key => keycaps[key].PixelWidth) + (entry.Chord.Keys.Length - 1) * gap).ToArray();
         var stackWidth = widths.Max();
         var stackHeight = rowHeight * entries.Count + rowGap * (entries.Count - 1);
         var fit = Math.Min(1, Math.Min(width / stackWidth, height / stackHeight));
@@ -44,7 +46,7 @@ internal sealed class KeystrokeRenderer
             var y = box.Y + row * (rowHeight + rowGap) * fit;
             foreach (var key in entries[row].Chord.Keys)
             {
-                var bitmap = Keycaps[key];
+                var bitmap = keycaps[key];
                 result.Add(new(key, new Rect(x, y, bitmap.PixelWidth * fit, bitmap.PixelHeight * fit), entries[row].Opacity));
                 x += (bitmap.PixelWidth + gap) * fit;
             }
@@ -64,12 +66,18 @@ internal sealed class KeystrokeRenderer
         {
             var local = cap.Bounds; local.Offset(-bounds.X, -bounds.Y);
             drawing.PushOpacity(cap.Opacity);
-            drawing.DrawImage(Keycaps[cap.Key], local);
+            drawing.DrawImage(keycaps[cap.Key], local);
             drawing.Pop();
         }
         var bitmap = new RenderTargetBitmap((int)bounds.Width, (int)bounds.Height, 96, 96, PixelFormats.Pbgra32);
         bitmap.Render(visual); bitmap.Freeze();
         return new(bitmap, bounds);
+    }
+
+    private void EnsureKeycap(string key)
+    {
+        if (keycaps.ContainsKey(key)) return;
+        keycaps[key] = RenderKeycap(key, settings);
     }
 
     private static BitmapSource RenderKeycap(string key, KeystrokeOverlaySettings settings)

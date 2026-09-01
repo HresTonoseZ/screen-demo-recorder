@@ -43,7 +43,7 @@ public sealed class RegionSelectorWindow : Window
             preset.Click += (_, _) => { surface.SetSize(size.Item1, size.Item2); surface.Focus(); };
             commands.Children.Add(preset);
         }
-        var aspect = new CheckBox { Content = "Lock aspect", IsChecked = settings.LockAspectRatio, Margin = new Thickness(10, 0, 10, 0) };
+        var aspect = new CheckBox { Content = $"Lock {settings.AspectWidth}:{settings.AspectHeight}", IsChecked = settings.LockAspectRatio, Margin = new Thickness(10, 0, 10, 0) };
         aspect.Click += (_, _) => { surface.LockAspect = aspect.IsChecked == true; surface.Focus(); };
         commands.Children.Add(aspect);
         var snap = new CheckBox { Content = "Snap", IsChecked = settings.SnapToEdges, Margin = new Thickness(0, 0, 10, 0) };
@@ -58,7 +58,7 @@ public sealed class RegionSelectorWindow : Window
         root.Children.Add(toolbar);
         root.Children.Add(new TextBlock
         {
-            Text = "Drag inside to move · Drag an edge to resize · Arrows: 1 px · Shift+arrows: 10 px · Enter: accept · Esc: cancel",
+            Text = "Drag the top grip or anywhere inside to move · Drag an edge to resize · Arrows: 1 px · Shift+arrows: 10 px · Enter: accept · Esc: cancel",
             Foreground = Brushes.White, Background = new SolidColorBrush(Color.FromArgb(230, 20, 22, 28)),
             Padding = new Thickness(12), Margin = new Thickness(12),
             HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Bottom,
@@ -112,6 +112,19 @@ internal sealed class RegionSurface : FrameworkElement
     }
     private Rect ScreenRect => new(Region.X * ActualWidth / screenWidth, Region.Y * ActualHeight / screenHeight,
         Region.Width * ActualWidth / screenWidth, Region.Height * ActualHeight / screenHeight);
+    private Rect DragBarRect
+    {
+        get
+        {
+            var region = ScreenRect;
+            if (region.Width < 18 || region.Height < 18) return Rect.Empty;
+            var barWidth = Math.Min(180, Math.Max(18, region.Width - 20));
+            var barHeight = Math.Min(28, Math.Max(18, region.Height - 12));
+            var topMargin = Math.Min(selection.HandleSize / 2.0 + 7, Math.Max(2, region.Height - barHeight));
+            return new Rect(region.X + (region.Width - barWidth) / 2, region.Y + topMargin,
+                barWidth, barHeight);
+        }
+    }
 
     protected override void OnRender(DrawingContext dc)
     {
@@ -134,9 +147,20 @@ internal sealed class RegionSurface : FrameworkElement
                 new Rect(point.X - handleSize / 2.0, point.Y - handleSize / 2.0, handleSize, handleSize),
                 selection.HandleShape == SelectionHandleShape.Circle ? handleSize / 2.0 : 1,
                 selection.HandleShape == SelectionHandleShape.Circle ? handleSize / 2.0 : 1);
+        var dragBar = DragBarRect;
+        if (!dragBar.IsEmpty)
+        {
+            dc.DrawRoundedRectangle(new SolidColorBrush(Color.FromArgb(235, 36, 39, 46)),
+                new Pen(Brush(selection.SelectionColor), 1), dragBar, 7, 7);
+            var grip = new Pen(Brush(selection.DimensionColor), 1.5);
+            var centerX = dragBar.X + dragBar.Width / 2;
+            var centerY = dragBar.Y + dragBar.Height / 2;
+            foreach (var offset in new[] { -5.0, 0.0, 5.0 })
+                dc.DrawLine(grip, new Point(centerX + offset, centerY - 4), new Point(centerX + offset, centerY + 4));
+        }
         if (!selection.ShowDimensions) return;
         var dpi = VisualTreeHelper.GetDpi(this).PixelsPerDip;
-        var text = new FormattedText($"{Region.Width} × {Region.Height}   •   Drag to move", CultureInfo.InvariantCulture,
+        var text = new FormattedText($"{Region.Width} × {Region.Height}", CultureInfo.InvariantCulture,
             FlowDirection.LeftToRight, new Typeface("Segoe UI"), selection.DimensionSize, Brush(selection.DimensionColor), dpi);
         var tx = Math.Clamp(rect.X + (rect.Width - text.Width) / 2, 8, Math.Max(8, ActualWidth - text.Width - 20));
         var ty = Math.Clamp(rect.Bottom + 12, 80, Math.Max(80, ActualHeight - 75));
@@ -168,7 +192,7 @@ internal sealed class RegionSurface : FrameworkElement
         Focus();
         var pos = e.GetPosition(this);
         if (e.ClickCount == 2 && ScreenRect.Contains(pos)) { Accepted?.Invoke(this, EventArgs.Empty); return; }
-        start = Region; startPoint = ToPixels(pos); edges = HitEdges(pos);
+        start = Region; startPoint = ToPixels(pos); edges = DragBarRect.Contains(pos) ? RegionEdges.None : HitEdges(pos);
         drawing = edges == RegionEdges.None && !ScreenRect.Contains(pos);
         dragging = true;
         CaptureMouse(); e.Handled = true;
@@ -179,6 +203,7 @@ internal sealed class RegionSurface : FrameworkElement
         var position = e.GetPosition(this);
         if (!dragging)
         {
+            if (DragBarRect.Contains(position)) { Cursor = Cursors.SizeAll; return; }
             var hit = HitEdges(position);
             Cursor = hit switch
             {
@@ -196,12 +221,9 @@ internal sealed class RegionSurface : FrameworkElement
         double? ratio = LockAspect || Keyboard.Modifiers.HasFlag(ModifierKeys.Shift) ? (double)settings.AspectWidth / settings.AspectHeight : null;
         if (drawing)
         {
-            var minimumSize = Math.Min(settings.RegionMinimumSize, Math.Min(screenWidth, screenHeight));
-            var x = (int)Math.Clamp(Math.Min(startPoint.X, p.X), 0, screenWidth - minimumSize);
-            var y = (int)Math.Clamp(Math.Min(startPoint.Y, p.Y), 0, screenHeight - minimumSize);
-            Region = RegionGeometry.Fit(new PixelRect(x, y, Math.Abs(dx), Math.Abs(dy)), screenWidth, screenHeight, minimumSize);
-            if (ratio is not null)
-                Region = RegionGeometry.Resize(Region, RegionEdges.Right | RegionEdges.Bottom, 0, 0, screenWidth, screenHeight, ratio, minimumSize);
+            Region = RegionGeometry.Create(new PixelPoint((int)Math.Round(startPoint.X), (int)Math.Round(startPoint.Y)),
+                new PixelPoint((int)Math.Round(p.X), (int)Math.Round(p.Y)), screenWidth, screenHeight, ratio,
+                Math.Min(settings.RegionMinimumSize, Math.Min(screenWidth, screenHeight)));
         }
         else if (edges == RegionEdges.None)
             Region = RegionGeometry.Move(start, dx, dy, screenWidth, screenHeight, SnapEdges ? 12 : 0);

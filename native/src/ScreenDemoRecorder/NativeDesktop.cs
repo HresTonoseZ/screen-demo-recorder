@@ -108,6 +108,19 @@ internal static class NativeDesktop
         return GetWindowDisplayAffinity(new WindowInteropHelper(window).Handle, out var affinity) && affinity == 0x11;
     }
 
+    public static bool TryExclude(Window window)
+    {
+        try { Exclude(window); return true; }
+        catch (Exception error) when (error is Win32Exception or InvalidOperationException) { return false; }
+    }
+
+    public static bool IsPassiveOverlay(Window window)
+    {
+        var style = GetWindowLongPtr(new WindowInteropHelper(window).Handle, -20).ToInt64();
+        const long required = 0x00000020 | 0x00000080 | 0x08000000;
+        return (style & required) == required;
+    }
+
     public static PixelRect WindowBounds(Window window)
     {
         if (!GetWindowRect(new WindowInteropHelper(window).Handle, out var rect)) throw new Win32Exception();
@@ -123,10 +136,10 @@ internal static class NativeDesktop
     public static bool IsPerMonitorV2() =>
         AreDpiAwarenessContextsEqual(GetThreadDpiAwarenessContext(), new nint(-4));
 
-    public static void Place(Window window, PixelRect bounds, bool clickThrough)
+    public static void Place(Window window, PixelRect bounds, bool clickThrough, bool requireCaptureExclusion = true)
     {
         var hwnd = new WindowInteropHelper(window).EnsureHandle();
-        Exclude(window);
+        if (requireCaptureExclusion) Exclude(window);
         var style = GetWindowLongPtr(hwnd, -20).ToInt64() | 0x80;
         if (clickThrough) style |= 0x20 | 0x08000000;
         SetWindowLongPtr(hwnd, -20, (nint)style);

@@ -8,6 +8,7 @@ namespace ScreenDemoRecorder;
 internal sealed class RegionBoundary : IDisposable
 {
     private readonly List<Window> strips = [];
+    private readonly List<PixelRect> expectedBounds = [];
 
     public RegionBoundary(DisplayInfo display, PixelRect region, string color, int thickness, bool show = true)
     {
@@ -27,26 +28,33 @@ internal sealed class RegionBoundary : IDisposable
                 {
                     Title = "Recording area boundary", WindowStyle = WindowStyle.None, ResizeMode = ResizeMode.NoResize,
                     ShowInTaskbar = false, ShowActivated = false, Topmost = true,
-                    AllowsTransparency = true, Background = RgbaColor.ToBrush(color),
+                    Background = RgbaColor.ToBrush(color),
+                    Width = 1, Height = 1, Opacity = show ? 0 : 1,
                     Content = new Border { Background = RgbaColor.ToBrush(color), IsHitTestVisible = false },
                 };
                 strips.Add(strip);
-                strip.SourceInitialized += (_, _) => NativeDesktop.Place(strip, rect, true);
+                expectedBounds.Add(rect);
                 if (show) strip.Show();
                 else new System.Windows.Interop.WindowInteropHelper(strip).EnsureHandle();
-                if (NativeDesktop.WindowBounds(strip) != rect)
-                    throw new InvalidOperationException("Windows did not apply the requested recording boundary bounds.");
+                NativeDesktop.Place(strip, rect, true, requireCaptureExclusion: false);
+                _ = NativeDesktop.TryExclude(strip);
+                if (show) strip.Opacity = 1;
             }
         }
         catch { Dispose(); throw; }
     }
 
     public bool IsExcluded => strips.All(NativeDesktop.IsExcluded);
+    public bool IsVisible => strips.Count == expectedBounds.Count && strips.All(strip => strip.IsVisible);
+    public bool HasExpectedBounds => strips.Count == expectedBounds.Count &&
+        strips.Zip(expectedBounds).All(pair => NativeDesktop.WindowBounds(pair.First) == pair.Second);
+    public bool IsPassive => strips.Count == expectedBounds.Count && strips.All(NativeDesktop.IsPassiveOverlay);
 
     public void Dispose()
     {
         foreach (var strip in strips) strip.Close();
         strips.Clear();
+        expectedBounds.Clear();
     }
 }
 

@@ -36,7 +36,7 @@ The main window does not expose X/Y coordinates, palette size, dither flags, pad
 ### Required interactions
 
 - Eight resize handles: four corners and four edges.
-- Drag anywhere inside the selected area to move the entire rectangle.
+- Drag the visible top grip or anywhere inside the selected area to move the entire rectangle.
 - A visible move affordance and move cursor at the center.
 - Live width × height readout.
 - Arrow keys move by 1 pixel; Shift+Arrow moves by 10 pixels.
@@ -48,7 +48,7 @@ The main window does not expose X/Y coordinates, palette size, dither flags, pad
 
 ### Persistent recording boundary
 
-After selection, the boundary remains visible during the countdown and recording. It changes from the selection accent to the recording color and includes a small status tag. The boundary and controller windows must be excluded from capture through the Windows display-affinity API.
+After selection, the boundary remains visible whenever Show area boundary is enabled and the application is running, including while the controller is hidden in the notification area. It changes from the selection accent to the recording color and includes a small status tag. The passive topmost boundary never activates, receives focus, or intercepts pointer input. It requests Windows capture exclusion when available, but a display-affinity failure must never prevent the boundary from being shown. Controller capture exclusion remains mandatory.
 
 The recording controller sits just outside the region and contains elapsed time, Pause/Resume, Stop, and Cancel. Its position can be changed if it would fall outside the monitor or cover another control.
 
@@ -85,7 +85,7 @@ The common recorder window exposes only an enable switch and summary. Selecting 
 - A Test keystroke animation action with a live preview.
 - An option to hide the recorder's own start, pause, stop, and cancel shortcuts.
 
-Printable single keys are disabled by default. Enabling them requires an explicit privacy notice because global keyboard capture can include sensitive input. Password-field detection is not treated as a reliable safety boundary.
+Printable single keys are disabled by default. Selecting All keys unconditionally enables every captured keyboard virtual key, including ordinary letters, navigation, function, numpad and standalone modifier keys. It requires an explicit privacy notice because global keyboard capture can include sensitive input. Password-field detection is not treated as a reliable safety boundary.
 
 Keyboard events should be stored as timestamped recording metadata and composed into the final MP4 or GIF. This makes the visible result deterministic, allows filtering after capture, and avoids relying on a desktop overlay being captured correctly. Only normalized key identities and timestamps required for rendering are stored; no background input is retained outside an active recording.
 
@@ -125,7 +125,7 @@ Each category begins with a preset and then exposes exact values. Changes update
 - Media Foundation owns H.264 encoding.
 - A low-level keyboard hook is active only during recording and is responsible for normalized, timestamped key events.
 - Overlay composition uses one shared model for preview, MP4 rendering, and GIF rendering.
-- Region and controller windows use capture exclusion and do not depend on post-capture cropping to hide themselves.
+- Controller windows require capture exclusion. Passive region-boundary strips request it independently, but remain visible if Windows rejects display affinity.
 
 ## Phased implementation
 
@@ -142,7 +142,7 @@ Each category begins with a preset and then exposes exact values. Changes update
 
 ### Phase 3 — Region workflow
 
-- Native multi-monitor selector, whole-region dragging, resizing, keyboard movement, presets, snapping, and persistent excluded boundary.
+- Native multi-monitor selector, whole-region dragging, resizing, keyboard movement, presets, snapping, and persistent passive boundary with best-effort capture exclusion.
 
 ### Phase 4 — Recording pipeline
 

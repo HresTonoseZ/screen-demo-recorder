@@ -47,7 +47,7 @@ internal sealed class OverlayCompositor : IDisposable
                 if (raster.BackgroundBlur > 0)
                 {
                     blurSource = context.CreateBitmap(new SizeI(width, height), IntPtr.Zero, 0,
-                        new BitmapProperties1(new D2DPixelFormat(Format.B8G8R8A8_UNorm, D2DAlphaMode.Premultiplied),
+                        new BitmapProperties1(new D2DPixelFormat(Format.B8G8R8A8_UNorm, D2DAlphaMode.Ignore),
                             96, 96, BitmapOptions.None));
                     blurEffect = new ID2D1Effect(context.CreateEffect(EffectGuids.GaussianBlur));
                     blurEffect.SetInput(0, blurSource, true);
@@ -80,12 +80,13 @@ internal sealed class OverlayCompositor : IDisposable
         var drawing = context ?? throw new ObjectDisposedException(nameof(OverlayCompositor));
         using var surface = frame.QueryInterface<IDXGISurface>();
         using var target = drawing.CreateBitmapFromDxgiSurface(surface,
-            new BitmapProperties1(new D2DPixelFormat(Format.B8G8R8A8_UNorm, D2DAlphaMode.Premultiplied), 96, 96, BitmapOptions.Target | BitmapOptions.CannotDraw));
+            new BitmapProperties1(new D2DPixelFormat(Format.B8G8R8A8_UNorm, D2DAlphaMode.Ignore), 96, 96, BitmapOptions.Target | BitmapOptions.CannotDraw));
         drawing.Target = target;
         try
         {
             blurSource?.CopyFromBitmap(target).CheckError();
             drawing.BeginDraw();
+            drawing.PrimitiveBlend = PrimitiveBlend.SourceOver;
             drawing.PushAxisAlignedClip(new Vortice.RawRectF(0, 0, frameWidth, frameHeight), AntialiasMode.Aliased);
             if (label is { BackgroundBlur: > 0 } && blurEffect is not null)
             {

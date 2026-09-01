@@ -31,9 +31,9 @@ internal sealed class FrameScaler : IDisposable
         using var sourceSurface = source.QueryInterface<IDXGISurface>();
         using var destinationSurface = destination.QueryInterface<IDXGISurface>();
         using var input = drawing.CreateBitmapFromDxgiSurface(sourceSurface,
-            new BitmapProperties1(new D2DPixelFormat(Format.B8G8R8A8_UNorm, D2DAlphaMode.Premultiplied), 96, 96));
+            new BitmapProperties1(new D2DPixelFormat(Format.B8G8R8A8_UNorm, D2DAlphaMode.Ignore), 96, 96));
         using var target = drawing.CreateBitmapFromDxgiSurface(destinationSurface,
-            new BitmapProperties1(new D2DPixelFormat(Format.B8G8R8A8_UNorm, D2DAlphaMode.Premultiplied), 96, 96,
+            new BitmapProperties1(new D2DPixelFormat(Format.B8G8R8A8_UNorm, D2DAlphaMode.Ignore), 96, 96,
                 BitmapOptions.Target | BitmapOptions.CannotDraw));
         drawing.Target = target;
         try

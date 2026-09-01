@@ -42,6 +42,39 @@ public static class RegionGeometry
         return moved;
     }
 
+    public static PixelRect Create(PixelPoint anchor, PixelPoint pointer, int width, int height,
+        double? aspect = null, int minimumSize = MinimumSize)
+    {
+        minimumSize = Math.Max(1, minimumSize);
+        var directionX = pointer.X < anchor.X ? -1 : 1;
+        var directionY = pointer.Y < anchor.Y ? -1 : 1;
+        var maximumWidth = directionX < 0 ? anchor.X : width - anchor.X;
+        var maximumHeight = directionY < 0 ? anchor.Y : height - anchor.Y;
+        var requestedWidth = Math.Abs(pointer.X - anchor.X);
+        var requestedHeight = Math.Abs(pointer.Y - anchor.Y);
+        double resultWidth;
+        double resultHeight;
+        if (aspect is not { } ratio || !double.IsFinite(ratio) || ratio <= 0)
+        {
+            resultWidth = Math.Clamp(requestedWidth, Math.Min(minimumSize, maximumWidth), maximumWidth);
+            resultHeight = Math.Clamp(requestedHeight, Math.Min(minimumSize, maximumHeight), maximumHeight);
+        }
+        else
+        {
+            var desiredHeight = (requestedWidth * ratio + requestedHeight) / (ratio * ratio + 1);
+            var maximumAspectHeight = Math.Min(maximumHeight, maximumWidth / ratio);
+            var minimumAspectHeight = Math.Min(maximumAspectHeight, Math.Max(minimumSize, minimumSize / ratio));
+            resultHeight = Math.Clamp(desiredHeight, minimumAspectHeight, maximumAspectHeight);
+            resultWidth = resultHeight * ratio;
+        }
+        var pixelWidth = Math.Max(1, (int)Math.Round(resultWidth));
+        var pixelHeight = Math.Max(1, (int)Math.Round(resultHeight));
+        var x = directionX < 0 ? anchor.X - pixelWidth : anchor.X;
+        var y = directionY < 0 ? anchor.Y - pixelHeight : anchor.Y;
+        return Fit(new PixelRect(x, y, pixelWidth, pixelHeight), width, height,
+            Math.Min(minimumSize, Math.Min(pixelWidth, pixelHeight)));
+    }
+
     public static PixelRect Resize(PixelRect region, RegionEdges edges, int dx, int dy, int width, int height,
         double? aspect = null, int minimumSize = MinimumSize)
     {
@@ -63,13 +96,17 @@ public static class RegionGeometry
         var ay = hy < 0 ? region.Bottom : hy > 0 ? region.Y : region.Y + region.Height / 2.0;
         var maxWidth = hx < 0 ? ax : hx > 0 ? width - ax : 2 * Math.Min(ax, width - ax);
         var maxHeight = hy < 0 ? ay : hy > 0 ? height - ay : 2 * Math.Min(ay, height - ay);
-        var targetWidth = region.Width + hx * dx;
-        if (hx == 0 || (hy != 0 && Math.Abs(dy * ratio) > Math.Abs(dx)))
-            targetWidth = (int)Math.Round((region.Height + hy * dy) * ratio);
-        var upper = Math.Min(maxWidth, maxHeight * ratio);
-        var lower = Math.Min(upper, Math.Max(minimumSize, minimumSize * ratio));
-        var newWidth = Math.Clamp(targetWidth, lower, upper);
-        var newHeight = newWidth / ratio;
+        var requestedWidth = region.Width + hx * dx;
+        var requestedHeight = region.Height + hy * dy;
+        var targetHeight = hx == 0
+            ? requestedHeight
+            : hy == 0
+                ? requestedWidth / ratio
+                : (requestedWidth * ratio + requestedHeight) / (ratio * ratio + 1);
+        var upper = Math.Min(maxHeight, maxWidth / ratio);
+        var lower = Math.Min(upper, Math.Max(minimumSize, minimumSize / ratio));
+        var newHeight = Math.Clamp(targetHeight, lower, upper);
+        var newWidth = newHeight * ratio;
         var left = hx < 0 ? ax - newWidth : hx > 0 ? ax : ax - newWidth / 2;
         var top = hy < 0 ? ay - newHeight : hy > 0 ? ay : ay - newHeight / 2;
         return Fit(new PixelRect((int)Math.Round(left), (int)Math.Round(top),

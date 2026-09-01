@@ -35,7 +35,15 @@ internal static class KeystrokeRecordingChecks
         profile.Output.FilenameTemplate = "keystroke-check-{counter}";
         profile.Capture.MaximumDurationSeconds = 2;
         profile.Capture.HighlightClicks = true;
-        profile.Overlays.Keystrokes = new() { Enabled = true, VisibleDurationMilliseconds = 600, FadeDurationMilliseconds = 400 };
+        profile.Overlays.Keystrokes = new()
+        {
+            Enabled = true,
+            DisplayMode = KeystrokeDisplayMode.AllKeys,
+            HideNormalTyping = true,
+            MaximumStackEntries = 4,
+            VisibleDurationMilliseconds = 600,
+            FadeDurationMilliseconds = 400,
+        };
         profile.Overlays.Clicks = new() { DurationMilliseconds = 1000 };
         var renderer = new KeystrokeRenderer(profile.Overlays.Keystrokes);
         var clickRenderer = new ClickRenderer(profile.Overlays.Clicks);
@@ -53,6 +61,9 @@ internal static class KeystrokeRecordingChecks
             recording.AddKeystroke(0x53, KeyModifiers.Control | KeyModifiers.Shift);
             timeline.Add(new(["Ctrl", "Shift", "S"]), first);
             recording.AddKeystroke(0x41, KeyModifiers.None);
+            timeline.Add(new(["A"]), first);
+            recording.AddKeystroke(0x24, KeyModifiers.None);
+            timeline.Add(new(["Home"]), first);
             var clickPosition = new PixelPoint(crop.Width / 2, crop.Height / 2);
             recording.AddMouseClick(clickPosition.X, clickPosition.Y, MouseClickButton.Left);
             clickTimeline.Add(clickPosition, MouseClickButton.Left, first);

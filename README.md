@@ -249,7 +249,7 @@ caption rendering in `screen_demo_recorder/render.py`, GIF processing in
 
 ## Project
 
-- Version: `1.0.0`
+- Version: `1.0.2`
 - Maintainer: HresTonoseZ
 - Minimum platform: Windows 10 version 2004
 - License: [MIT](LICENSE)

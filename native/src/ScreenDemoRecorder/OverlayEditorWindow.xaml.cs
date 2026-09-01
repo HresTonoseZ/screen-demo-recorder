@@ -91,7 +91,6 @@ public partial class OverlayEditorWindow : Window
         KeystrokeFadeSlider.Value = Result.Keystrokes.FadeDurationMilliseconds;
         KeystrokeMergeWindowSlider.Value = Result.Keystrokes.MergeWindowMilliseconds;
         MergeCombinationsCheckBox.IsChecked = Result.Keystrokes.MergeCombinations;
-        HideTypingCheckBox.IsChecked = Result.Keystrokes.HideNormalTyping;
         HideRecorderHotkeysCheckBox.IsChecked = Result.Keystrokes.HideRecorderHotkeys;
         ClicksEnabledCheckBox.IsChecked = HighlightClicks;
         ClickSizeSlider.Value = Result.Clicks.Size;
@@ -443,12 +442,13 @@ public partial class OverlayEditorWindow : Window
         }
 
         Result.Keystrokes.DisplayMode = mode;
+        Result.Keystrokes.HideNormalTyping = mode != KeystrokeDisplayMode.AllKeys;
         if (mode == KeystrokeDisplayMode.AllKeys && !privacyWarningShown)
         {
             privacyWarningShown = true;
             MessageBox.Show(
                 this,
-                "All-keys mode can expose passwords and other sensitive input in the video when Hide normal typing is off. Password fields are not detected. Use Shortcuts only for demonstrations that should hide normal typing.",
+                "All-keys mode records ordinary typing and can expose passwords or other sensitive input in the video. Password fields are not detected. Use Shortcuts only or Non-text keys when normal typing must stay private.",
                 "Keyboard Privacy",
                 MessageBoxButton.OK,
                 MessageBoxImage.Warning);
@@ -477,7 +477,7 @@ public partial class OverlayEditorWindow : Window
         Result.Keystrokes.FadeDurationMilliseconds = (int)KeystrokeFadeSlider.Value;
         Result.Keystrokes.MergeWindowMilliseconds = (int)KeystrokeMergeWindowSlider.Value;
         Result.Keystrokes.MergeCombinations = MergeCombinationsCheckBox.IsChecked == true;
-        Result.Keystrokes.HideNormalTyping = HideTypingCheckBox.IsChecked == true;
+        Result.Keystrokes.HideNormalTyping = Result.Keystrokes.DisplayMode != KeystrokeDisplayMode.AllKeys;
         Result.Keystrokes.HideRecorderHotkeys = HideRecorderHotkeysCheckBox.IsChecked == true;
     }
 

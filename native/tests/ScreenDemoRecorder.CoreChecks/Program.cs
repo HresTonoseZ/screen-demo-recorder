@@ -266,6 +266,17 @@ static void CheckRegionGeometry()
     Require(RegionGeometry.Resize(r, RegionEdges.Bottom, 0, 20, 1920, 1080).Height == 380, "Bottom edge resize failed.");
     Require(RegionGeometry.Resize(new PixelRect(100, 80, 160, 120), RegionEdges.Right, -500, 0,
         1920, 1080, minimumSize: 64).Width == 64, "The profile-specific minimum region size was ignored.");
+    var created = RegionGeometry.Create(new PixelPoint(900, 500), new PixelPoint(420, 230), 1920, 1080, 16.0 / 9);
+    Require(created.Right == 900 && created.Bottom == 500, "Aspect-locked drawing lost its starting corner.");
+    Require(Math.Abs(created.Width - created.Height * 16.0 / 9) < 2, "Aspect-locked drawing did not create the requested ratio.");
+    var previousWidth = 0;
+    for (var delta = 0; delta <= 400; delta += 4)
+    {
+        var resized = RegionGeometry.Resize(r, RegionEdges.Right | RegionEdges.Bottom, delta, delta / 2,
+            1920, 1080, 16.0 / 9);
+        Require(resized.Width >= previousWidth, "Aspect-locked corner resizing reversed while the pointer moved outward.");
+        previousWidth = resized.Width;
+    }
     var allEdges = new[] { RegionEdges.Left, RegionEdges.Right, RegionEdges.Top, RegionEdges.Bottom,
         RegionEdges.Top | RegionEdges.Left, RegionEdges.Top | RegionEdges.Right,
         RegionEdges.Bottom | RegionEdges.Left, RegionEdges.Bottom | RegionEdges.Right };
@@ -281,7 +292,7 @@ static void CheckRegionGeometry()
     }
     var restored = RegionGeometry.Fit(new PixelRect(1500, 900, 1280, 720), 1280, 720);
     Require(restored == new PixelRect(0, 0, 1280, 720), "Restoring to a smaller monitor failed.");
-    Console.WriteLine("Region geometry: movement, snapping, eight resize handles, minimum size and aspect-ratio bounds passed.");
+    Console.WriteLine("Region geometry: movement, snapping, drag creation, smooth aspect lock, eight resize handles and bounds passed.");
 }
 
 static void CheckMp4OutputPlanning()
