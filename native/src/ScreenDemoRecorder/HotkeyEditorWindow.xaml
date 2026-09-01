@@ -1,0 +1,35 @@
+<Window x:Class="ScreenDemoRecorder.HotkeyEditorWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Recording Shortcuts" Width="530" SizeToContent="Height" ResizeMode="NoResize"
+        WindowStartupLocation="CenterOwner" Background="{DynamicResource WindowBrush}" Foreground="{DynamicResource TextBrush}"
+        PreviewKeyDown="Window_PreviewKeyDown">
+    <StackPanel x:Name="EditorPanel" Margin="20">
+        <TextBlock Text="Recording shortcuts" FontSize="20" FontWeight="SemiBold" />
+        <TextBlock Text="Click a shortcut, then press the keys you want.&#10;Saved in this profile. Clear disables an action's shortcut."
+                   TextWrapping="Wrap" Foreground="{DynamicResource MutedBrush}" Margin="0,8,0,20" />
+        <Grid>
+            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="190" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+            <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+            <TextBlock Text="Start / stop &amp; save" VerticalAlignment="Center" />
+            <Button x:Name="RecordShortcutButton" Grid.Column="1" Tag="ToggleRecording" Click="Capture_Click" Margin="0,0,0,10" />
+            <Button Grid.Column="2" Content="Clear" Tag="ToggleRecording" Click="Clear_Click" Margin="8,0,0,10" Padding="8,5" />
+            <TextBlock Grid.Row="1" Text="Pause / resume" VerticalAlignment="Center" />
+            <Button x:Name="PauseShortcutButton" Grid.Row="1" Grid.Column="1" Tag="TogglePause" Click="Capture_Click" Margin="0,0,0,10" />
+            <Button Grid.Row="1" Grid.Column="2" Content="Clear" Tag="TogglePause" Click="Clear_Click" Margin="8,0,0,10" Padding="8,5" />
+            <TextBlock Grid.Row="2" Text="Discard recording" VerticalAlignment="Center" />
+            <Button x:Name="CancelShortcutButton" Grid.Row="2" Grid.Column="1" Tag="CancelRecording" Click="Capture_Click" />
+            <Button Grid.Row="2" Grid.Column="2" Content="Clear" Tag="CancelRecording" Click="Clear_Click" Margin="8,0,0,0" Padding="8,5" />
+        </Grid>
+        <TextBlock Text="Shortcuts work while another app is focused. Discard asks for confirmation. During countdown, Start/stop or Discard cancels the countdown."
+                   TextWrapping="Wrap" Foreground="{DynamicResource MutedBrush}" Margin="0,18,0,0" />
+        <TextBlock x:Name="ShortcutStatus" Text="Use Ctrl/Alt combinations or function keys. Esc cancels key assignment."
+                   TextWrapping="Wrap" MinHeight="40" Margin="0,12,0,16" Foreground="{DynamicResource MutedBrush}" />
+        <Grid>
+            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+            <Button Content="Defaults" Click="Defaults_Click" HorizontalAlignment="Left" />
+            <Button Grid.Column="1" Content="Cancel" IsCancel="True" Width="80" Margin="0,0,8,0" />
+            <Button x:Name="SaveShortcutsButton" Grid.Column="2" Content="Save shortcuts" Style="{StaticResource PrimaryButtonStyle}" Click="Save_Click" />
+        </Grid>
+    </StackPanel>
+</Window>

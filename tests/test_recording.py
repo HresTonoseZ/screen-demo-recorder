@@ -2,30 +2,24 @@
 #
 # SPDX-License-Identifier: MIT
 
+import tempfile
 import unittest
+from pathlib import Path
 
-from blender_demo_recorder.app import choose_window, parse_args
-from blender_demo_recorder.recording import BlenderWindow, validate_slug
-
-
-class SlugTests(unittest.TestCase):
-    def test_valid_slug_is_normalized(self):
-        self.assertEqual(validate_slug("  Edit-Pivot  "), "edit-pivot")
-
-    def test_spaces_and_underscores_are_rejected(self):
-        for value in ("edit pivot", "edit_pivot", "-edit", "edit-"):
-            with self.subTest(value=value):
-                with self.assertRaises(ValueError):
-                    validate_slug(value)
+from screen_demo_recorder.recording import ScreenRecorder
 
 
-class ApplicationTests(unittest.TestCase):
-    def test_selects_requested_blender_window(self):
-        windows = [BlenderWindow(10, "First - Blender"), BlenderWindow(20, "Second - Blender")]
-        self.assertEqual(choose_window(windows, 2), windows[1])
+class RecordingStateTests(unittest.TestCase):
+    def test_rejects_tiny_capture_regions_before_starting_worker(self):
+        recorder = ScreenRecorder()
+        with tempfile.TemporaryDirectory() as directory:
+            with self.assertRaisesRegex(ValueError, "at least 16"):
+                recorder.start((0, 0, 10, 10), Path(directory) / "capture.mp4")
+        self.assertFalse(recorder.has_session)
 
-    def test_hotkey_is_interactively_configurable_by_default(self):
-        self.assertIsNone(parse_args([]).hotkey)
+    def test_pause_requires_an_active_recording(self):
+        with self.assertRaisesRegex(RuntimeError, "No active recording"):
+            ScreenRecorder().pause()
 
 
 if __name__ == "__main__":

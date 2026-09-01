@@ -1,0 +1,74 @@
+<Window x:Class="ScreenDemoRecorder.ApplicationSettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Recorder Settings" Width="460" Height="390" MinWidth="410" MinHeight="340"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False"
+        Background="{DynamicResource WindowBrush}" Foreground="{DynamicResource TextBrush}"
+        Loaded="Window_Loaded">
+    <Grid Margin="18">
+        <Grid.RowDefinitions><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <StackPanel Margin="0,0,8,0">
+                <TextBlock Text="Recorder settings" FontSize="18" FontWeight="SemiBold" Margin="0,0,0,16" />
+                <CheckBox x:Name="AlwaysOnTopCheckBox" Content="Keep the recorder above other windows" Margin="0,0,0,12" />
+                <CheckBox x:Name="CloseToTrayCheckBox" Content="Close the window to the notification area" Margin="0,0,0,18" />
+                <TextBlock Text="Theme" Foreground="{DynamicResource MutedBrush}" Margin="0,0,0,5" />
+                <ComboBox x:Name="ThemeComboBox">
+                    <ComboBoxItem Content="Use Windows setting" Tag="System" />
+                    <ComboBoxItem Content="Light" Tag="Light" />
+                    <ComboBoxItem Content="Dark" Tag="Dark" />
+                </ComboBox>
+                <TextBlock Text="These settings belong to the active profile and change immediately after saving."
+                           Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap" Margin="0,14,0,0" />
+
+                <Expander x:Name="SelectionAppearanceExpander" Header="Area selection appearance" Margin="0,14,0,10"
+                          Foreground="{DynamicResource TextBrush}">
+                    <StackPanel Margin="0,8,0,0">
+                        <TextBlock Text="Quick colors" Foreground="{DynamicResource MutedBrush}" Margin="0,0,0,4" />
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                            <Button Content="Violet" Tag="Violet" Padding="7,3" Click="SelectionPreset_Click" />
+                            <Button Content="Blue" Tag="Blue" Padding="7,3" Margin="4,0,0,0" Click="SelectionPreset_Click" />
+                            <Button Content="High contrast" Tag="Contrast" Padding="7,3" Margin="4,0,0,0" Click="SelectionPreset_Click" />
+                        </StackPanel>
+                        <Grid>
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="115" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <TextBlock Text="Selection line" VerticalAlignment="Center" /><TextBox x:Name="SelectionColorBox" Grid.Column="1" Margin="5,2" />
+                            <TextBlock Grid.Row="1" Text="Recording line" VerticalAlignment="Center" /><TextBox x:Name="RecordingColorBox" Grid.Row="1" Grid.Column="1" Margin="5,2" />
+                            <TextBlock Grid.Row="2" Text="Outside dim" VerticalAlignment="Center" /><TextBox x:Name="DimColorBox" Grid.Row="2" Grid.Column="1" Margin="5,2" />
+                            <TextBlock Grid.Row="3" Text="Handle fill" VerticalAlignment="Center" /><TextBox x:Name="HandleColorBox" Grid.Row="3" Grid.Column="1" Margin="5,2" />
+                            <TextBlock Grid.Row="4" Text="Handle border" VerticalAlignment="Center" /><TextBox x:Name="HandleBorderColorBox" Grid.Row="4" Grid.Column="1" Margin="5,2" />
+                            <TextBlock Grid.Row="5" Text="Dimension text" VerticalAlignment="Center" /><TextBox x:Name="DimensionColorBox" Grid.Row="5" Grid.Column="1" Margin="5,2" />
+                        </Grid>
+                        <TextBlock Text="Use #RRGGBB or #RRGGBBAA." Foreground="{DynamicResource MutedBrush}" Margin="0,4,0,8" />
+                        <TextBlock Text="{Binding ElementName=SelectionLineWidthSlider, Path=Value, StringFormat=Line width: {0:0} px}" Foreground="{DynamicResource MutedBrush}" />
+                        <Slider x:Name="SelectionLineWidthSlider" Minimum="1" Maximum="20" TickFrequency="1" IsSnapToTickEnabled="True" />
+                        <TextBlock Text="{Binding ElementName=SelectionDashLengthSlider, Path=Value, StringFormat=Dash length: {0:0} px}" Foreground="{DynamicResource MutedBrush}" Margin="0,5,0,0" />
+                        <Slider x:Name="SelectionDashLengthSlider" Minimum="1" Maximum="100" TickFrequency="1" IsSnapToTickEnabled="True" />
+                        <TextBlock Text="{Binding ElementName=SelectionDashGapSlider, Path=Value, StringFormat=Dash gap: {0:0} px}" Foreground="{DynamicResource MutedBrush}" Margin="0,5,0,0" />
+                        <Slider x:Name="SelectionDashGapSlider" Minimum="1" Maximum="100" TickFrequency="1" IsSnapToTickEnabled="True" />
+                        <TextBlock Text="{Binding ElementName=SelectionHandleSizeSlider, Path=Value, StringFormat=Handle size: {0:0} px}" Foreground="{DynamicResource MutedBrush}" Margin="0,5,0,0" />
+                        <Slider x:Name="SelectionHandleSizeSlider" Minimum="6" Maximum="80" TickFrequency="1" IsSnapToTickEnabled="True" />
+                        <TextBlock Text="{Binding ElementName=SelectionHandleBorderSlider, Path=Value, StringFormat=Handle border: {0:0} px}" Foreground="{DynamicResource MutedBrush}" Margin="0,5,0,0" />
+                        <Slider x:Name="SelectionHandleBorderSlider" Minimum="1" Maximum="20" TickFrequency="1" IsSnapToTickEnabled="True" />
+                        <TextBlock Text="Handle shape" Foreground="{DynamicResource MutedBrush}" Margin="0,6,0,3" />
+                        <ComboBox x:Name="SelectionHandleShapeCombo">
+                            <ComboBoxItem Content="Circle" Tag="Circle" /><ComboBoxItem Content="Square" Tag="Square" />
+                        </ComboBox>
+                        <CheckBox x:Name="ShowDimensionsCheckBox" Content="Show dimensions while selecting" Margin="0,10,0,6" />
+                        <TextBlock Text="{Binding ElementName=SelectionDimensionSizeSlider, Path=Value, StringFormat=Dimension size: {0:0} px}" Foreground="{DynamicResource MutedBrush}" />
+                        <Slider x:Name="SelectionDimensionSizeSlider" Minimum="8" Maximum="72" TickFrequency="1" IsSnapToTickEnabled="True" />
+                    </StackPanel>
+                </Expander>
+                <TextBlock x:Name="ErrorText" Foreground="#FF6677" TextWrapping="Wrap" Margin="0,0,0,8" />
+            </StackPanel>
+        </ScrollViewer>
+        <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right">
+            <Button Content="Cancel" Width="90" IsCancel="True" Margin="0,0,8,0" />
+            <Button Content="Save" Width="100" Style="{StaticResource PrimaryButtonStyle}" Click="Save_Click" />
+        </StackPanel>
+    </Grid>
+</Window>

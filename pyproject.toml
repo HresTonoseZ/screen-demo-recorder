@@ -3,25 +3,23 @@ requires = ["setuptools>=69"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "blender-addon-demo-recorder"
-version = "0.1.0"
-description = "Record Blender windows and build configurable animated GIF demonstrations"
+name = "screen-demo-recorder"
+version = "1.0.0"
+description = "Record Windows monitors or regions and build configurable animated GIF demonstrations"
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
 authors = [{ name = "HresTonoseZ" }]
 dependencies = [
-  "Pillow>=10.0,<13.0",
-  "imageio-ffmpeg>=0.6,<0.7",
-  "mss>=10.0,<11.0",
-  "pynput>=1.8,<2.0",
+  "Pillow==12.3.0",
+  "imageio-ffmpeg==0.6.0",
+  "mss==10.2.0",
+  "pynput==1.8.2",
+  "PySide6==6.11.2",
 ]
 
-[project.scripts]
-blender-demo-recorder = "blender_demo_recorder.app:main"
-blender-demo-gif = "blender_demo_recorder.build:main"
-blender-video-gif = "blender_demo_recorder.video:main"
+[project.gui-scripts]
+screen-demo-recorder = "screen_demo_recorder.app:main"
 
 [tool.setuptools]
-packages = ["blender_demo_recorder"]
-
+packages = ["screen_demo_recorder"]

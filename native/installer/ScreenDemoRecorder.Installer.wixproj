@@ -1,0 +1,16 @@
+<Project Sdk="WixToolset.Sdk/6.0.2">
+  <PropertyGroup>
+    <InstallerPlatform>x64</InstallerPlatform>
+    <Cultures>en-US</Cultures>
+    <ProductVersion Condition="'$(ProductVersion)' == ''">1.0.0</ProductVersion>
+    <PublishDirectory Condition="'$(PublishDirectory)' == ''">$(MSBuildThisFileDirectory)..\..\dist\native-preview</PublishDirectory>
+    <OutputName>ScreenDemoRecorder-$(ProductVersion)-x64</OutputName>
+    <DefineConstants>ProductVersion=$(ProductVersion)</DefineConstants>
+    <!-- ICE91 is expected for a package that is deliberately and exclusively per-user. -->
+    <SuppressIces>ICE91</SuppressIces>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="WixToolset.UI.wixext" Version="6.0.2" />
+    <Compile Include="$(GeneratedPayload)" Link="Payload.wxs" />
+  </ItemGroup>
+</Project>

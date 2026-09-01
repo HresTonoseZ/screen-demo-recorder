@@ -1,0 +1,52 @@
+<Window x:Class="ScreenDemoRecorder.Mp4SettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="MP4 Output" Width="520" Height="540" MinWidth="460" MinHeight="500"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False"
+        Background="{DynamicResource WindowBrush}" Foreground="{DynamicResource TextBrush}"
+        FontFamily="Segoe UI Variable Text, Segoe UI" FontSize="13">
+    <Grid Margin="20">
+        <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+        <StackPanel Margin="0,0,0,16">
+            <TextBlock Text="MP4 output" FontSize="22" FontWeight="SemiBold" />
+            <TextBlock Text="Choose a useful preset; the recording always keeps its aspect ratio." Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap" Margin="0,5,0,0" />
+        </StackPanel>
+        <StackPanel Grid.Row="1">
+            <GroupBox Header="Resolution">
+                <StackPanel>
+                    <ComboBox x:Name="ResolutionCombo" IsEditable="True" SelectionChanged="SettingChanged" LostKeyboardFocus="SettingChanged"
+                              ToolTip="Choose Original, a preset, or type an exact maximum width from 64 to 7680 pixels">
+                        <ComboBoxItem Content="Original · match capture" Tag="0" />
+                        <ComboBoxItem Content="Small · 960 px wide" Tag="960" />
+                        <ComboBoxItem Content="Compact · 1280 px wide" Tag="1280" />
+                        <ComboBoxItem Content="Full HD · 1920 px wide" Tag="1920" />
+                        <ComboBoxItem Content="2K · 2560 px wide" Tag="2560" />
+                        <ComboBoxItem Content="4K · 3840 px wide" Tag="3840" />
+                    </ComboBox>
+                    <TextBlock x:Name="SizeSummary" Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap" Margin="0,8,0,0" />
+                </StackPanel>
+            </GroupBox>
+            <GroupBox Header="Files">
+                <StackPanel>
+                    <TextBlock Text="Filename" Foreground="{DynamicResource MutedBrush}" Margin="0,0,0,4" />
+                    <TextBox x:Name="FilenameBox" ToolTip="Available placeholders: {date}, {time}, {title}, {counter}" />
+                    <CheckBox x:Name="OpenFolderCheck" Content="Open the folder after saving" Margin="0,10,0,0" />
+                </StackPanel>
+            </GroupBox>
+            <Border Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="9" Padding="12" Margin="0,2,0,0">
+                <StackPanel>
+                    <TextBlock Text="Reliable encoding" FontWeight="SemiBold" />
+                    <TextBlock Text="Hardware encoding is used first. If it cannot start, the recorder automatically switches to the Windows software encoder." Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap" Margin="0,5,0,0" />
+                </StackPanel>
+            </Border>
+        </StackPanel>
+        <StackPanel Grid.Row="2" Margin="0,14,0,0">
+            <TextBlock x:Name="ErrorText" Foreground="#FF9CA7" TextWrapping="Wrap" Visibility="Collapsed" Margin="0,0,0,10" />
+            <Grid>
+                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                <Button Content="Save settings" Click="Save_Click" IsDefault="True" Style="{StaticResource PrimaryButtonStyle}" />
+                <Button Grid.Column="1" Content="Cancel" IsCancel="True" Margin="8,0,0,0" />
+            </Grid>
+        </StackPanel>
+    </Grid>
+</Window>

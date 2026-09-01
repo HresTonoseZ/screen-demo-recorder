@@ -1,0 +1,39 @@
+<Window x:Class="ScreenDemoRecorder.RecordingFailureWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Recording Stopped" Width="610" Height="500" MinWidth="520" MinHeight="440"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False"
+        Background="{DynamicResource WindowBrush}" Foreground="{DynamicResource TextBrush}"
+        FontFamily="Segoe UI Variable Text, Segoe UI" FontSize="13">
+    <Grid Margin="20">
+        <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+        <StackPanel Margin="0,0,0,16">
+            <TextBlock Text="Recording stopped" FontSize="22" FontWeight="SemiBold" />
+            <TextBlock Text="The recording could not be completed." Foreground="{DynamicResource MutedBrush}" Margin="0,5,0,0" />
+        </StackPanel>
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+                <TextBlock x:Name="MessageText" TextWrapping="Wrap" />
+                <Border x:Name="RecoveryPanel" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="9" Padding="12" Margin="0,14,0,0">
+                    <StackPanel>
+                        <TextBlock Text="Unfinished MP4 retained" FontWeight="SemiBold" />
+                        <TextBlock Text="The file may be incomplete, but it was not deleted." Foreground="{DynamicResource MutedBrush}" Margin="0,4,0,0" />
+                        <TextBlock x:Name="RecoveryPathText" TextWrapping="Wrap" Margin="0,8,0,0" />
+                        <Button Content="Open folder" HorizontalAlignment="Left" Margin="0,10,0,0" Click="OpenFolder_Click" />
+                    </StackPanel>
+                </Border>
+                <Border x:Name="SafeSettingsPanel" Background="#241F3D" BorderBrush="#5C4DA0" BorderThickness="1" CornerRadius="9" Padding="12" Margin="0,12,0,0">
+                    <StackPanel>
+                        <TextBlock Text="Try safer settings" FontWeight="SemiBold" />
+                        <TextBlock Text="Use Efficient quality and limit the next MP4 to 1280 pixels wide. The current unfinished file stays untouched." Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap" Margin="0,4,0,0" />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+        <Grid Grid.Row="2" Margin="0,16,0,0">
+            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+            <Button x:Name="SafeSettingsButton" Content="Use safer settings" Click="SafeSettings_Click" Style="{StaticResource PrimaryButtonStyle}" />
+            <Button Grid.Column="1" Content="Close" IsCancel="True" Margin="8,0,0,0" />
+        </Grid>
+    </Grid>
+</Window>

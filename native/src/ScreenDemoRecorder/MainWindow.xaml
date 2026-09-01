@@ -1,0 +1,182 @@
+<Window x:Class="ScreenDemoRecorder.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Screen Demo Recorder"
+        Width="430"
+        Height="760"
+        MinWidth="400"
+        MinHeight="650"
+        Background="{DynamicResource WindowBrush}"
+        Foreground="{DynamicResource TextBrush}"
+        WindowStartupLocation="CenterScreen">
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <Grid Grid.Row="0" Margin="0,0,0,10">
+            <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBlock Text="Screen Demo Recorder" FontSize="18" FontWeight="SemiBold" VerticalAlignment="Center" />
+            <StackPanel Grid.Column="1" Orientation="Horizontal">
+                <Button x:Name="ApplicationSettingsButton" Content="Settings" FontSize="11" MinHeight="24" Height="24" Padding="6,2" Click="ApplicationSettings_Click" />
+                <Button x:Name="ShortcutsButton" Content="Shortcuts" FontSize="11" MinHeight="24" Height="24" Padding="6,2" Margin="6,0,0,0" Click="EditHotkeys_Click" />
+            </StackPanel>
+            <StackPanel x:Name="ProfilePanel" Grid.Row="1" Grid.ColumnSpan="2" Orientation="Horizontal" Margin="0,10,0,0">
+                <TextBlock Text="Profile" VerticalAlignment="Center" Margin="0,0,12,0" />
+                <ComboBox x:Name="ProfileComboBox" Width="250" SelectionChanged="ProfileComboBox_SelectionChanged" />
+                <Button x:Name="ProfileMenuButton" Content="•••" Width="40" Margin="6,0,0,0" Click="ProfileMenuButton_Click">
+                    <Button.ContextMenu>
+                        <ContextMenu>
+                            <MenuItem Header="Duplicate profile" Click="DuplicateProfile_Click" />
+                            <MenuItem Header="Rename profile" Click="RenameProfile_Click" />
+                            <Separator />
+                            <MenuItem Header="Import profile…" Click="ImportProfile_Click" />
+                            <MenuItem Header="Export profile…" Click="ExportProfile_Click" />
+                            <MenuItem Header="Reset profile" Click="ResetProfile_Click" />
+                            <Separator />
+                            <MenuItem Header="Delete profile" Click="DeleteProfile_Click" />
+                        </ContextMenu>
+                    </Button.ContextMenu>
+                </Button>
+            </StackPanel>
+        </Grid>
+
+        <ScrollViewer x:Name="SettingsPanel" Grid.Row="1" VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+                <GroupBox Header="Capture" Margin="0,0,0,8">
+                    <StackPanel>
+                        <UniformGrid Columns="3" Margin="0,0,0,12">
+                            <RadioButton x:Name="RegionSource" Content="Region" GroupName="CaptureSource" Tag="Region" IsChecked="True" Checked="CaptureSource_Checked" />
+                            <RadioButton x:Name="DisplaySource" Content="Display" GroupName="CaptureSource" Tag="Display" Checked="CaptureSource_Checked" />
+                            <RadioButton x:Name="WindowSource" Content="Window" GroupName="CaptureSource" Tag="Window" ToolTip="Record one application window" Checked="CaptureSource_Checked" />
+                        </UniformGrid>
+                        <ComboBox x:Name="DisplayComboBox" DisplayMemberPath="Label" SelectionChanged="DisplayComboBox_SelectionChanged" Margin="0,0,0,10" />
+                        <Grid Margin="0,0,0,10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <TextBlock x:Name="AreaSummaryText" Text="No region selected" FontWeight="SemiBold" Foreground="{DynamicResource TextBrush}" />
+                                <CheckBox x:Name="BoundaryCheckBox" Content="Show area boundary" Margin="0,6,0,0" Checked="BoundarySetting_Changed" Unchecked="BoundarySetting_Changed" />
+                            </StackPanel>
+                            <Button x:Name="SelectRegionButton" Grid.Column="1" Content="Select" Click="SelectRegion_Click" />
+                        </Grid>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="FPS" VerticalAlignment="Center" Margin="0,0,8,0" />
+                            <ComboBox x:Name="FpsComboBox" Grid.Column="1" SelectionChanged="CommonSetting_Changed">
+                                <ComboBoxItem Content="15 fps" Tag="15" />
+                                <ComboBoxItem Content="30 fps" Tag="30" />
+                                <ComboBoxItem Content="60 fps" Tag="60" />
+                                <ComboBoxItem Content="Auto (30 fps)" Tag="0" />
+                            </ComboBox>
+                            <TextBlock Grid.Column="2" Text="Countdown" VerticalAlignment="Center" Margin="14,0,8,0" />
+                            <ComboBox x:Name="CountdownComboBox" Grid.Column="3" SelectionChanged="CommonSetting_Changed">
+                                <ComboBoxItem Content="Off" Tag="0" />
+                                <ComboBoxItem Content="3 s" Tag="3" />
+                                <ComboBoxItem Content="5 s" Tag="5" />
+                            </ComboBox>
+                        </Grid>
+                        <DockPanel Margin="0,10,0,0">
+                            <Button DockPanel.Dock="Right" Content="Advanced capture…" Margin="12,0,0,0" Click="CaptureSettings_Click" />
+                            <TextBlock Text="Stop after" VerticalAlignment="Center" Margin="0,0,12,0" />
+                            <ComboBox x:Name="DurationComboBox" SelectionChanged="CommonSetting_Changed">
+                                <ComboBoxItem Content="No limit" Tag="0" />
+                                <ComboBoxItem Content="30 seconds" Tag="30" />
+                                <ComboBoxItem Content="1 minute" Tag="60" />
+                                <ComboBoxItem Content="5 minutes" Tag="300" />
+                                <ComboBoxItem Content="15 minutes" Tag="900" />
+                            </ComboBox>
+                        </DockPanel>
+                    </StackPanel>
+                </GroupBox>
+
+                <GroupBox Header="Output" Margin="0,0,0,8">
+                    <StackPanel>
+                        <Grid Margin="0,0,0,10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="80" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="88" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="Format" VerticalAlignment="Center" Margin="0,0,8,0" />
+                            <ComboBox x:Name="FormatComboBox" Grid.Column="1" SelectionChanged="CommonSetting_Changed">
+                                <ComboBoxItem Content="MP4" Tag="Mp4" />
+                                <ComboBoxItem Content="GIF" Tag="Gif" />
+                            </ComboBox>
+                            <TextBlock x:Name="QualityLabel" Grid.Column="2" Text="Quality" VerticalAlignment="Center" Margin="14,0,8,0" />
+                            <ComboBox x:Name="QualityComboBox" Grid.Column="3" SelectionChanged="CommonSetting_Changed">
+                                <ComboBoxItem Content="Efficient" Tag="Efficient" />
+                                <ComboBoxItem Content="Balanced" Tag="Balanced" />
+                                <ComboBoxItem Content="Crisp" Tag="Crisp" />
+                            </ComboBox>
+                            <Button x:Name="GifSettingsButton" Grid.Column="2" Grid.ColumnSpan="3" Content="GIF settings…" Margin="14,0,0,0" Visibility="Collapsed" Click="GifSettings_Click" />
+                            <Button x:Name="Mp4SettingsButton" Grid.Column="4" Content="Original" Margin="6,0,0,0" Click="Mp4Settings_Click" />
+                        </Grid>
+                        <TextBlock Text="Save to" Foreground="{DynamicResource MutedBrush}" Margin="0,0,0,5" />
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBox x:Name="OutputDirectoryTextBox" TextChanged="CommonSetting_Changed" />
+                            <Button Grid.Column="1" Content="Browse" Margin="7,0,0,0" Click="BrowseOutput_Click" />
+                            <Button x:Name="RecentFilesButton" Grid.Column="2" Content="Recent" Margin="7,0,0,0" Click="RecentFiles_Click">
+                                <Button.ContextMenu><ContextMenu /></Button.ContextMenu>
+                            </Button>
+                        </Grid>
+                    </StackPanel>
+                </GroupBox>
+
+                <GroupBox Header="Presentation" Margin="0,0,0,8">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <CheckBox x:Name="CursorCheckBox" Content="Show cursor" Margin="0,0,0,4" Checked="CommonSetting_Changed" Unchecked="CommonSetting_Changed" />
+                                <CheckBox x:Name="LabelCheckBox" Content="Show label in video" Margin="0,0,0,4" Checked="CommonSetting_Changed" Unchecked="CommonSetting_Changed" />
+                                <CheckBox x:Name="KeystrokesCheckBox" Content="Show pressed keys" Margin="0,0,0,4" Checked="CommonSetting_Changed" Unchecked="CommonSetting_Changed" />
+                                <CheckBox x:Name="ClicksCheckBox" Content="Highlight mouse clicks" Checked="CommonSetting_Changed" Unchecked="CommonSetting_Changed" />
+                            </StackPanel>
+                            <Button Grid.Column="1" Content="Edit overlays" Click="EditOverlays_Click" VerticalAlignment="Center" />
+                        </Grid>
+                </GroupBox>
+            </StackPanel>
+        </ScrollViewer>
+
+        <Grid Grid.Row="2" Margin="0,4,0,0">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+            <TextBlock x:Name="ShortcutSummary" TextWrapping="Wrap" Foreground="{DynamicResource MutedBrush}" Margin="0,0,0,8" />
+            <Grid Grid.Row="1">
+                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                <Button x:Name="RecordButton" Content="Record MP4" Click="RecordButton_Click" Style="{StaticResource PrimaryButtonStyle}" Height="44" />
+                <Button x:Name="PauseButton" Grid.Column="1" Content="Pause" Click="PauseButton_Click" Margin="6,0,0,0" Visibility="Collapsed" />
+                <Button x:Name="CancelButton" Grid.Column="2" Content="Cancel" Click="CancelButton_Click" Margin="6,0,0,0" Visibility="Collapsed" />
+            </Grid>
+            <TextBlock x:Name="StatusText" Grid.Row="2" Text="Loading profiles…" TextWrapping="Wrap" Foreground="{DynamicResource MutedBrush}" HorizontalAlignment="Center" Margin="0,8,0,0" />
+            <ProgressBar x:Name="ExportProgress" Grid.Row="3" Minimum="0" Maximum="100" Height="4" Margin="0,8,0,0" Visibility="Collapsed" Foreground="{DynamicResource AccentBrush}" />
+        </Grid>
+    </Grid>
+</Window>

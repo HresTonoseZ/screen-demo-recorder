@@ -1,9 +1,14 @@
 __pycache__/
 *.py[cod]
 *.egg-info/
-.demo_frames/
-media/videos/
+.venv-build/
+.dotnet-home/
+.nuget-packages/
 dist/
 build/
+**/bin/
+**/obj/
+.vs/
+*.user
 *.zip
 *.rar
