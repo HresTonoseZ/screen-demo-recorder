@@ -10,15 +10,18 @@ public sealed class ProfileStore
     private static readonly JsonSerializerOptions JsonOptions = CreateJsonOptions();
     private static readonly JsonSerializerOptions ImportJsonOptions = CreateJsonOptions(JsonUnmappedMemberHandling.Disallow);
     private readonly SemaphoreSlim gate = new(1, 1);
+    private readonly string? previousStorageDirectory;
     private ProfileDocument document = new();
 
     public ProfileStore(string? settingsPath = null, string? legacySettingsPath = null)
     {
-        var appData = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "Screen Demo Recorder");
-        SettingsPath = settingsPath ?? Path.Combine(appData, "settings-v2.json");
-        LegacySettingsPath = legacySettingsPath ?? Path.Combine(appData, "settings.json");
+        var portableDirectory = AppContext.BaseDirectory;
+        SettingsPath = settingsPath ?? Path.Combine(portableDirectory, "settings-v2.json");
+        LegacySettingsPath = legacySettingsPath ?? Path.Combine(portableDirectory, "settings.json");
+        if (settingsPath is null && legacySettingsPath is null)
+            previousStorageDirectory = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "Screen Demo Recorder");
     }
 
     public string SettingsPath { get; }
@@ -41,6 +44,7 @@ public sealed class ProfileStore
         await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
+            MigratePreviousStorage();
             if (File.Exists(SettingsPath))
             {
                 var json = await File.ReadAllTextAsync(SettingsPath, cancellationToken).ConfigureAwait(false);
@@ -290,6 +294,29 @@ public sealed class ProfileStore
         var json = JsonSerializer.Serialize(document, JsonOptions) + Environment.NewLine;
         await File.WriteAllTextAsync(temporaryPath, json, cancellationToken).ConfigureAwait(false);
         File.Move(temporaryPath, SettingsPath, true);
+    }
+
+    private void MigratePreviousStorage()
+    {
+        if (previousStorageDirectory is null || !Directory.Exists(previousStorageDirectory)) return;
+        var destinationDirectory = Path.GetDirectoryName(SettingsPath)
+            ?? throw new InvalidOperationException("The settings path has no parent directory.");
+        Directory.CreateDirectory(destinationDirectory);
+        MoveIfPresent("settings-v2.json", SettingsPath);
+        MoveIfPresent("settings.json", LegacySettingsPath);
+        MoveIfPresent("settings-v1.backup.json", Path.Combine(destinationDirectory, "settings-v1.backup.json"));
+        var previousLogs = Path.Combine(previousStorageDirectory, "logs");
+        var portableLogs = Path.Combine(destinationDirectory, "logs");
+        if (Directory.Exists(previousLogs) && !Directory.Exists(portableLogs))
+            Directory.Move(previousLogs, portableLogs);
+        if (!Directory.EnumerateFileSystemEntries(previousStorageDirectory).Any())
+            Directory.Delete(previousStorageDirectory);
+
+        void MoveIfPresent(string name, string destination)
+        {
+            var source = Path.Combine(previousStorageDirectory, name);
+            if (File.Exists(source) && !File.Exists(destination)) File.Move(source, destination);
+        }
     }
 
     private void BackupLegacySettings()

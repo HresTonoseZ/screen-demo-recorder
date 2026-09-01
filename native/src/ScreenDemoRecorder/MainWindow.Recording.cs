@@ -82,14 +82,26 @@ public partial class MainWindow
                 _ = new GifExportPlan(area.Width, area.Height, TimeSpan.FromSeconds(1), snapshot.Capture, snapshot.Output);
             RecordButton.Content = "Starting…";
             StatusText.Text = "Preparing screen capture and the H.264 encoder…";
-            var label = LabelRenderer.Render(snapshot.Overlays.Label, area.Width, area.Height);
-            var keys = snapshot.Overlays.Keystrokes.Enabled ? new KeystrokeRenderer(snapshot.Overlays.Keystrokes) : null;
-            var clicks = snapshot.Capture.HighlightClicks ? new ClickRenderer(snapshot.Overlays.Clicks) : null;
-            // Capture-affinity on a transparent, capture-sized WPF overlay can
-            // transiently produce a black DWM surface. Keep desktop previews out
-            // of the capture session; recorded overlays are composed on the GPU.
+            var capturesDesktopWindows = snapshot.Capture.Source != CaptureSource.Window;
+            var liveLabel = capturesDesktopWindows && snapshot.Overlays.Desktop.ShowLabel && snapshot.Overlays.Label.Enabled;
+            var liveKeys = capturesDesktopWindows && snapshot.Overlays.Desktop.ShowKeystrokes && snapshot.Overlays.Keystrokes.Enabled;
+            var liveClicks = capturesDesktopWindows && snapshot.Overlays.Desktop.ShowMouseClicks && snapshot.Capture.HighlightClicks;
+            var label = liveLabel ? null : LabelRenderer.Render(snapshot.Overlays.Label, area.Width, area.Height);
+            var keys = snapshot.Overlays.Keystrokes.Enabled && !liveKeys ? new KeystrokeRenderer(snapshot.Overlays.Keystrokes) : null;
+            var clicks = snapshot.Capture.HighlightClicks && !liveClicks ? new ClickRenderer(snapshot.Overlays.Clicks) : null;
             boundary?.Dispose(); boundary = null;
             desktopOverlay?.Dispose(); desktopOverlay = null;
+            if (capturesDesktopWindows)
+            {
+                // A monitor/region recording captures this ordinary transparent
+                // window directly. Never apply capture-affinity or draw it twice.
+                snapshot.Overlays.Desktop.ShowLabel = liveLabel;
+                snapshot.Overlays.Desktop.ShowKeystrokes = liveKeys;
+                snapshot.Overlays.Desktop.ShowMouseClicks = liveClicks;
+            }
+            if ((snapshot.Overlays.Desktop.ShowLabel || snapshot.Overlays.Desktop.ShowKeystrokes || snapshot.Overlays.Desktop.ShowMouseClicks) &&
+                TryGetDesktopOverlayBounds(out var liveBounds))
+                desktopOverlay = new DesktopOverlayWindow(liveBounds, snapshot.Overlays, snapshot.Capture);
             NativeDesktop.FlushComposition();
             recording = new Mp4Recording(target.Item, area, snapshot,
                 snapshot.Capture.AutomaticFps ? 30 : snapshot.Capture.RecordingFps, label, keys, clicks,

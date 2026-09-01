@@ -627,9 +627,10 @@ public partial class MainWindow : Window
 
     private void RefreshBoundary()
     {
+        if (recordingBusy) return;
         boundary?.Dispose(); boundary = null;
         desktopOverlay?.Dispose(); desktopOverlay = null;
-        if (PreviewMode || recordingBusy || !TryGetDesktopOverlayBounds(out var bounds)) return;
+        if (PreviewMode || !TryGetDesktopOverlayBounds(out var bounds)) return;
 
         try
         {

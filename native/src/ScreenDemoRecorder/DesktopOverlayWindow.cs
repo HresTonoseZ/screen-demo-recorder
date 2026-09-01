@@ -109,6 +109,11 @@ internal sealed class DesktopOverlayWindow : IDisposable
 
     internal bool IsPassive => NativeDesktop.IsPassiveOverlay(window);
 
+    internal void AddKeystrokeForChecks(int virtualKey, KeyModifiers modifiers = KeyModifiers.None) =>
+        OnKeyPressed(virtualKey, modifiers, false);
+
+    internal void AddMouseClickForChecks(int x, int y, MouseClickButton button) => OnMouseClicked(x, y, button);
+
     private void OnKeyPressed(int virtualKey, KeyModifiers modifiers, bool altGr)
     {
         var chord = keystrokeFilter?.Filter(virtualKey, modifiers, altGr);

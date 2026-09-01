@@ -146,7 +146,7 @@ internal sealed class Mp4Recording
             if (label is not null)
                 compositor = new OverlayCompositor(device, label, area.Width, area.Height);
             if (keyRenderer is not null || clickRenderer is not null)
-                dynamicCompositor = new DynamicOverlayCompositor(device, context, keyRenderer, clickRenderer, area.Width, area.Height);
+                dynamicCompositor = new DynamicOverlayCompositor(device, keyRenderer, clickRenderer, area.Width, area.Height);
             if (outputPlan.IsResized) scaler = new FrameScaler(device);
             using var captureDevice = GraphicsInterop.Wrap(device);
             using var pool = Direct3D11CaptureFramePool.CreateFreeThreaded(captureDevice,

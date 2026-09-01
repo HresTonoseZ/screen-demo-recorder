@@ -134,12 +134,14 @@ dimension label. Selection UI is never composited into the GIF.
 Settings are stored at:
 
 ```text
-%LOCALAPPDATA%\Screen Demo Recorder\settings.json
+<ScreenDemoRecorder.exe folder>\settings-v2.json
 ```
 
-Logs are stored under the adjacent `logs` directory. Profiles may be saved,
-deleted, reset, exported, and imported from JSON. Imports are fully validated
-before replacing active settings.
+The native application is portable: profiles, presets, recent-file history,
+and application settings stay beside the executable. Existing native settings
+from `%LOCALAPPDATA%\Screen Demo Recorder` are moved here on the first launch.
+Profiles may be saved, deleted, reset, exported, and imported from JSON.
+Imports are fully validated before replacing active settings.
 
 ## Build the executable
 

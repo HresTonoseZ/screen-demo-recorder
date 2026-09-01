@@ -14,6 +14,10 @@ Directory.CreateDirectory(testRoot);
 
 try
 {
+    var portableStore = new ProfileStore();
+    Require(string.Equals(Path.GetDirectoryName(portableStore.SettingsPath),
+        Path.TrimEndingDirectorySeparator(AppContext.BaseDirectory), StringComparison.OrdinalIgnoreCase),
+        "Default settings are not stored beside the executable.");
     await CheckDefaultProfileAsync(Path.Combine(testRoot, "default"));
     await CheckProfileOperationsAsync(Path.Combine(testRoot, "profiles"));
     await CheckProfileTransferAsync(Path.Combine(testRoot, "transfer"));

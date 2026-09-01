@@ -1,54 +1,49 @@
 using System.Runtime.InteropServices;
-using System.Windows;
 using System.Windows.Media.Imaging;
 using ScreenDemoRecorder.Core.Models;
 using ScreenDemoRecorder.Core.Services;
 using ScreenDemoRecorder.Overlays;
+using Vortice.Direct2D1;
 using Vortice.Direct3D11;
 using Vortice.DXGI;
 using Vortice.Mathematics;
-using WpfRect = System.Windows.Rect;
+using D2DAlphaMode = Vortice.DCommon.AlphaMode;
+using D2DPixelFormat = Vortice.DCommon.PixelFormat;
 
 namespace ScreenDemoRecorder.Capture;
 
 internal sealed class DynamicOverlayCompositor : IDisposable
 {
-    private sealed record Raster(byte[] Pixels, int Width, int Height);
-
-    private readonly ID3D11DeviceContext context;
-    private readonly ID3D11Texture2D staging;
+    private ID2D1Factory1? factory;
+    private ID2D1Device? device;
+    private ID2D1DeviceContext? context;
     private readonly KeystrokeRenderer? keys;
     private readonly ClickRenderer? clicks;
-    private readonly Dictionary<string, Raster> keycaps = [];
-    private readonly Dictionary<MouseClickButton, Raster> clickTextures = [];
+    private readonly Dictionary<string, ID2D1Bitmap1> keycaps = [];
+    private readonly Dictionary<MouseClickButton, ID2D1Bitmap1> clickTextures = [];
     private readonly int frameWidth;
     private readonly int frameHeight;
-    private byte[] pixels = [];
     private bool disposed;
 
-    public DynamicOverlayCompositor(ID3D11Device device, ID3D11DeviceContext deviceContext,
+    public DynamicOverlayCompositor(ID3D11Device graphicsDevice,
         KeystrokeRenderer? keystrokes, ClickRenderer? mouseClicks, int width, int height)
     {
-        context = deviceContext;
         keys = keystrokes;
         clicks = mouseClicks;
         frameWidth = width;
         frameHeight = height;
-        staging = device.CreateTexture2D(new Texture2DDescription
+        try
         {
-            Width = (uint)width,
-            Height = (uint)height,
-            MipLevels = 1,
-            ArraySize = 1,
-            Format = Format.B8G8R8A8_UNorm,
-            SampleDescription = new SampleDescription(1, 0),
-            Usage = ResourceUsage.Staging,
-            CPUAccessFlags = CpuAccessFlags.Read | CpuAccessFlags.Write,
-        });
-        if (keys is not null)
-            foreach (var cap in keys.Keycaps) keycaps.Add(cap.Key, Read(cap.Value));
-        if (clicks is not null)
-            foreach (var texture in clicks.Textures) clickTextures.Add(texture.Key, Read(texture.Value));
+            factory = D2D1.D2D1CreateFactory<ID2D1Factory1>(FactoryType.MultiThreaded);
+            using var dxgi = graphicsDevice.QueryInterface<IDXGIDevice>();
+            device = factory.CreateDevice(dxgi);
+            context = device.CreateDeviceContext(DeviceContextOptions.None);
+            if (keys is not null)
+                foreach (var cap in keys.Keycaps) keycaps.Add(cap.Key, Upload(cap.Value));
+            if (clicks is not null)
+                foreach (var texture in clicks.Textures) clickTextures.Add(texture.Key, Upload(texture.Value));
+        }
+        catch { Dispose(); throw; }
     }
 
     public void Draw(ID3D11Texture2D frame, IReadOnlyList<VisibleKeystroke> entries, IReadOnlyList<VisibleClick> mouseClicks)
@@ -59,87 +54,60 @@ internal sealed class DynamicOverlayCompositor : IDisposable
         if (caps.Length == 0 && clickRings.Length == 0) return;
 
         foreach (var cap in caps)
-            if (!keycaps.ContainsKey(cap.Key)) keycaps.Add(cap.Key, Read(keys!.Keycaps[cap.Key]));
+            if (!keycaps.ContainsKey(cap.Key)) keycaps.Add(cap.Key, Upload(keys!.Keycaps[cap.Key]));
 
-        var allBounds = caps.Select(cap => cap.Bounds).Concat(clickRings.Select(click => click.Bounds)).ToArray();
-        var left = Math.Clamp((int)Math.Floor(allBounds.Min(box => box.Left)), 0, frameWidth);
-        var top = Math.Clamp((int)Math.Floor(allBounds.Min(box => box.Top)), 0, frameHeight);
-        var right = Math.Clamp((int)Math.Ceiling(allBounds.Max(box => box.Right)), 0, frameWidth);
-        var bottom = Math.Clamp((int)Math.Ceiling(allBounds.Max(box => box.Bottom)), 0, frameHeight);
-        var width = right - left;
-        var height = bottom - top;
-        if (width <= 0 || height <= 0) return;
-
-        context.CopySubresourceRegion(staging, 0, 0, 0, 0, frame, 0, new Box(left, top, 0, right, bottom, 1));
-        context.Map(staging, 0, MapMode.ReadWrite, Vortice.Direct3D11.MapFlags.None, out var mapped).CheckError();
+        var drawing = context ?? throw new ObjectDisposedException(nameof(DynamicOverlayCompositor));
+        using var surface = frame.QueryInterface<IDXGISurface>();
+        using var target = drawing.CreateBitmapFromDxgiSurface(surface,
+            new BitmapProperties1(new D2DPixelFormat(Format.B8G8R8A8_UNorm, D2DAlphaMode.Ignore), 96, 96,
+                BitmapOptions.Target | BitmapOptions.CannotDraw));
+        drawing.Target = target;
         try
         {
-            var stride = width * 4;
-            if (pixels.Length < stride * height) pixels = new byte[stride * height];
-            for (var y = 0; y < height; y++)
-                Marshal.Copy(mapped.DataPointer + y * (int)mapped.RowPitch, pixels, y * stride, stride);
-
+            drawing.BeginDraw();
+            drawing.PrimitiveBlend = PrimitiveBlend.SourceOver;
+            drawing.PushAxisAlignedClip(new Vortice.RawRectF(0, 0, frameWidth, frameHeight), AntialiasMode.Aliased);
             foreach (var click in clickRings)
-                Blend(clickTextures[click.Button], click.Bounds, click.Opacity, left, top, width, height, stride);
+                DrawBitmap(clickTextures[click.Button], click.Bounds, click.Opacity);
             foreach (var cap in caps)
-                Blend(keycaps[cap.Key], cap.Bounds, cap.Opacity, left, top, width, height, stride);
-
-            for (var y = 0; y < height; y++)
-                Marshal.Copy(pixels, y * stride, mapped.DataPointer + y * (int)mapped.RowPitch, stride);
+                DrawBitmap(keycaps[cap.Key], cap.Bounds, cap.Opacity);
+            drawing.PopAxisAlignedClip();
+            drawing.EndDraw().CheckError();
         }
-        finally
-        {
-            context.Unmap(staging, 0);
-        }
-        context.CopySubresourceRegion(frame, 0, (uint)left, (uint)top, 0, staging, 0, new Box(0, 0, 0, width, height, 1));
-    }
+        finally { drawing.Target = null; }
 
-    private void Blend(Raster source, WpfRect destination, double opacity, int originX, int originY,
-        int targetWidth, int targetHeight, int targetStride)
-    {
-        var left = Math.Max(0, (int)Math.Floor(destination.Left) - originX);
-        var top = Math.Max(0, (int)Math.Floor(destination.Top) - originY);
-        var right = Math.Min(targetWidth, (int)Math.Ceiling(destination.Right) - originX);
-        var bottom = Math.Min(targetHeight, (int)Math.Ceiling(destination.Bottom) - originY);
-        if (left >= right || top >= bottom || destination.Width <= 0 || destination.Height <= 0) return;
-
-        var clippedOpacity = Math.Clamp(opacity, 0, 1);
-        for (var y = top; y < bottom; y++)
+        void DrawBitmap(ID2D1Bitmap1 bitmap, System.Windows.Rect bounds, double opacity)
         {
-            var screenY = y + originY;
-            var sourceY = Math.Clamp((int)((screenY - destination.Top) * source.Height / destination.Height), 0, source.Height - 1);
-            for (var x = left; x < right; x++)
-            {
-                var screenX = x + originX;
-                var sourceX = Math.Clamp((int)((screenX - destination.Left) * source.Width / destination.Width), 0, source.Width - 1);
-                var sourceOffset = (sourceY * source.Width + sourceX) * 4;
-                var targetOffset = y * targetStride + x * 4;
-                var alpha = source.Pixels[sourceOffset + 3] / 255.0 * clippedOpacity;
-                if (alpha <= 0) continue;
-                var inverse = 1 - alpha;
-                for (var channel = 0; channel < 3; channel++)
-                    pixels[targetOffset + channel] = (byte)Math.Clamp(
-                        Math.Round(source.Pixels[sourceOffset + channel] * clippedOpacity + pixels[targetOffset + channel] * inverse), 0, 255);
-                pixels[targetOffset + 3] = (byte)Math.Clamp(
-                    Math.Round(source.Pixels[sourceOffset + 3] * clippedOpacity + pixels[targetOffset + 3] * inverse), 0, 255);
-            }
+            drawing.DrawBitmap(bitmap,
+                new Vortice.RawRectF((float)bounds.Left, (float)bounds.Top, (float)bounds.Right, (float)bounds.Bottom),
+                (float)Math.Clamp(opacity, 0, 1), InterpolationMode.Linear, null, null);
         }
     }
 
-    private static Raster Read(BitmapSource bitmap)
+    private ID2D1Bitmap1 Upload(BitmapSource bitmap)
     {
-        var bytes = new byte[bitmap.PixelWidth * bitmap.PixelHeight * 4];
-        bitmap.CopyPixels(bytes, bitmap.PixelWidth * 4, 0);
-        return new Raster(bytes, bitmap.PixelWidth, bitmap.PixelHeight);
+        var pixels = new byte[bitmap.PixelWidth * bitmap.PixelHeight * 4];
+        bitmap.CopyPixels(pixels, bitmap.PixelWidth * 4, 0);
+        var pinned = GCHandle.Alloc(pixels, GCHandleType.Pinned);
+        try
+        {
+            return context!.CreateBitmap(new SizeI(bitmap.PixelWidth, bitmap.PixelHeight), pinned.AddrOfPinnedObject(),
+                (uint)bitmap.PixelWidth * 4,
+                new BitmapProperties1(new D2DPixelFormat(Format.B8G8R8A8_UNorm, D2DAlphaMode.Premultiplied), 96, 96));
+        }
+        finally { pinned.Free(); }
     }
 
     public void Dispose()
     {
         if (disposed) return;
         disposed = true;
-        staging.Dispose();
+        foreach (var bitmap in keycaps.Values) bitmap.Dispose();
+        foreach (var bitmap in clickTextures.Values) bitmap.Dispose();
         keycaps.Clear();
         clickTextures.Clear();
-        pixels = [];
+        context?.Dispose(); context = null;
+        device?.Dispose(); device = null;
+        factory?.Dispose(); factory = null;
     }
 }
