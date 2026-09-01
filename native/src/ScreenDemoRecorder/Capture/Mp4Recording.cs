@@ -174,13 +174,13 @@ internal sealed class Mp4Recording
                 if (keyRenderer is not null && captureKeyboard)
                 {
                     keyboard = new KeyboardCapture(AddKeystroke);
-                    await keyboard.Ready;
+                    await keyboard.Ready.WaitAsync(TimeSpan.FromSeconds(5), abort.Token);
                     if (IsStopped) keyboard.RequestStop();
                 }
                 if (clickRenderer is not null && captureMouse && mapScreenPoint is not null)
                 {
                     mouse = new MouseClickCapture(AddMouseClick);
-                    await mouse.Ready;
+                    await mouse.Ready.WaitAsync(TimeSpan.FromSeconds(5), abort.Token);
                     if (IsStopped) mouse.RequestStop();
                 }
                 var encoding = MediaEncodingProfile.CreateMp4(VideoEncodingQuality.HD1080p);
@@ -199,7 +199,8 @@ internal sealed class Mp4Recording
                         stream.Size = 0;
                     }
                     var transcoder = new MediaTranscoder { HardwareAccelerationEnabled = hardware };
-                    var preparation = await transcoder.PrepareMediaStreamSourceTranscodeAsync(source, stream, encoding).AsTask(abort.Token);
+                    var preparation = await transcoder.PrepareMediaStreamSourceTranscodeAsync(source, stream, encoding)
+                        .AsTask(abort.Token).WaitAsync(TimeSpan.FromSeconds(20), abort.Token);
                     return new PreparedEncoder(transcoder, preparation);
                 }, attempt => attempt.Preparation.CanTranscode ? null : attempt.Preparation.FailureReason.ToString());
                 usesSoftwareEncoder = prepared.UsedSoftware;

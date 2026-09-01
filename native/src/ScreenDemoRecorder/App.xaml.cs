@@ -252,6 +252,7 @@ public partial class App : Application
                 }
                 var liveProfile = store.GetActiveProfile();
                 liveProfile.Overlays.Desktop.ShowLabel = true;
+                liveProfile.Overlays.Desktop.ShowKeystrokes = true;
                 var liveBounds = new PixelRect(display.Bounds.X + 100, display.Bounds.Y + 100, 640, 360);
                 using (var liveOverlay = new DesktopOverlayWindow(liveBounds, liveProfile.Overlays, liveProfile.Capture))
                 {

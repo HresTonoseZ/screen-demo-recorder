@@ -89,6 +89,15 @@ public partial class MainWindow
                 snapshot.Capture.AutomaticFps ? 30 : snapshot.Capture.RecordingFps, label, keys, clicks,
                 screenPointMapper: target.MapScreenPoint,
                 sourceValidation: target.Validate);
+            var startupTimeout = Task.Delay(TimeSpan.FromSeconds(45));
+            var startup = await Task.WhenAny(recording.Ready, recording.Completion, startupTimeout);
+            if (startup == startupTimeout)
+            {
+                recording.Stop(discard: true);
+                throw new TimeoutException("Screen capture or the H.264 encoder did not start within 45 seconds.");
+            }
+            if (startup == recording.Completion)
+                await recording.Completion;
             if (await recording.Ready)
             {
                 PauseButton.Visibility = Visibility.Visible;

@@ -166,9 +166,12 @@ internal sealed class DesktopOverlayWindow : IDisposable
         disposed = true;
         timer?.Stop();
         if (timer is not null) timer.Tick -= RenderDynamicOverlays;
-        keyboard?.DisposeAsync().AsTask().GetAwaiter().GetResult();
+        // Never wait for global hooks on the WPF dispatcher. Windows may delay a
+        // hook thread while another application is busy, which previously froze
+        // the checkbox and the whole main window.
+        keyboard?.RequestStop();
         keyboard = null;
-        mouse?.DisposeAsync().AsTask().GetAwaiter().GetResult();
+        mouse?.RequestStop();
         mouse = null;
         window.Close();
     }

@@ -19,7 +19,10 @@ internal sealed class KeystrokeRenderer
     public KeystrokeRenderer(KeystrokeOverlaySettings style, IEnumerable<string>? keys = null)
     {
         settings = style;
-        keycaps = (keys ?? KeystrokeFilter.KeycapNames).Distinct().ToDictionary(key => key, key => RenderKeycap(key, style));
+        // Live overlays do not know which keys will be pressed. Rendering every
+        // possible keycap here blocks the UI thread when the live switch is enabled.
+        // Explicit preview callers may still warm only the small set they need.
+        keycaps = keys?.Distinct().ToDictionary(key => key, key => RenderKeycap(key, style)) ?? [];
     }
 
     public KeycapPlacement[] Layout(IReadOnlyList<VisibleKeystroke> entries, int width, int height)

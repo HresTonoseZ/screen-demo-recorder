@@ -20,7 +20,7 @@ internal static class KeystrokeRenderChecks
             {
                 var settings = new KeystrokeOverlaySettings { Enabled = true, Style = style, Anchor = OverlayAnchor.TopLeft, OffsetX = 0, OffsetY = 0 };
                 var renderer = new KeystrokeRenderer(settings);
-                Require(renderer.Keycaps.Values.All(cap => cap.IsFrozen), "Keycaps cannot be passed safely to the encoding thread.");
+                Require(renderer.Keycaps.Count == 0, "Live keycaps must be created lazily instead of blocking the UI thread.");
                 VisibleKeystroke[] entries = [new(new KeyChord(["Ctrl", "Shift", "S"]), 1), new(new KeyChord(["Alt", "Tab"]), 0.5)];
                 foreach (var anchor in Enum.GetValues<OverlayAnchor>())
                 foreach (var size in new[] { (32, 32), (320, 180), (360, 640), (1920, 1080) })
@@ -29,6 +29,8 @@ internal static class KeystrokeRenderChecks
                     var layout = renderer.Layout(entries, size.Item1, size.Item2);
                     Require(layout.All(cap => cap.Bounds.Left >= 0 && cap.Bounds.Top >= 0 && cap.Bounds.Right <= size.Item1 + 0.001 && cap.Bounds.Bottom <= size.Item2 + 0.001), "Keys escaped the capture bounds.");
                 }
+                Require(renderer.Keycaps.Count == 5, "Only visible keycaps should be rendered on demand.");
+                Require(renderer.Keycaps.Values.All(cap => cap.IsFrozen), "Keycaps cannot be passed safely to the encoding thread.");
                 settings.Anchor = OverlayAnchor.TopLeft;
                 var raster = renderer.RenderPreview([entries[0]], 520, 64)!;
                 drawing.DrawImage(raster.Bitmap, new Rect(16, y, raster.Bounds.Width, raster.Bounds.Height));
