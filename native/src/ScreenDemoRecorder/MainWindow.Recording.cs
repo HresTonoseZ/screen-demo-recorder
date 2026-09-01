@@ -85,6 +85,12 @@ public partial class MainWindow
             var label = LabelRenderer.Render(snapshot.Overlays.Label, area.Width, area.Height);
             var keys = snapshot.Overlays.Keystrokes.Enabled ? new KeystrokeRenderer(snapshot.Overlays.Keystrokes) : null;
             var clicks = snapshot.Capture.HighlightClicks ? new ClickRenderer(snapshot.Overlays.Clicks) : null;
+            // Capture-affinity on a transparent, capture-sized WPF overlay can
+            // transiently produce a black DWM surface. Keep desktop previews out
+            // of the capture session; recorded overlays are composed on the GPU.
+            boundary?.Dispose(); boundary = null;
+            desktopOverlay?.Dispose(); desktopOverlay = null;
+            NativeDesktop.FlushComposition();
             recording = new Mp4Recording(target.Item, area, snapshot,
                 snapshot.Capture.AutomaticFps ? 30 : snapshot.Capture.RecordingFps, label, keys, clicks,
                 screenPointMapper: target.MapScreenPoint,

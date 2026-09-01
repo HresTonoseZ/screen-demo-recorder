@@ -48,7 +48,6 @@ internal sealed class RegionBoundary : IDisposable
             if (show) window.Show();
             else new System.Windows.Interop.WindowInteropHelper(window).EnsureHandle();
             NativeDesktop.Place(window, bounds, true, requireCaptureExclusion: false);
-            _ = NativeDesktop.TryExclude(window);
             if (show) window.Opacity = 1;
         }
         catch

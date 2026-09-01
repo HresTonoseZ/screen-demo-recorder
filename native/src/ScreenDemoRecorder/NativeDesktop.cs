@@ -114,6 +114,12 @@ internal static class NativeDesktop
         catch (Exception error) when (error is Win32Exception or InvalidOperationException) { return false; }
     }
 
+    public static void FlushComposition()
+    {
+        var result = DwmFlush();
+        if (result < 0) Marshal.ThrowExceptionForHR(result);
+    }
+
     public static bool IsPassiveOverlay(Window window)
     {
         var style = GetWindowLongPtr(new WindowInteropHelper(window).Handle, -20).ToInt64();
@@ -180,6 +186,7 @@ internal static class NativeDesktop
     [DllImport("user32.dll")] private static extern uint GetWindowThreadProcessId(nint window, out uint processId);
     [DllImport("dwmapi.dll")] private static extern int DwmGetWindowAttribute(nint window, uint attribute, out uint value, int size);
     [DllImport("dwmapi.dll")] private static extern int DwmIsCompositionEnabled([MarshalAs(UnmanagedType.Bool)] out bool enabled);
+    [DllImport("dwmapi.dll")] private static extern int DwmFlush();
     [DllImport("user32.dll", EntryPoint = "GetMonitorInfoW", CharSet = CharSet.Unicode, SetLastError = true)] [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool GetMonitorInfo(nint monitor, ref MonitorInfo info);
     [DllImport("user32.dll", SetLastError = true)] [return: MarshalAs(UnmanagedType.Bool)]

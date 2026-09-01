@@ -91,7 +91,6 @@ internal sealed class DesktopOverlayWindow : IDisposable
         {
             window.Show();
             NativeDesktop.Place(window, bounds, true, requireCaptureExclusion: false);
-            IsExcludedFromCapture = NativeDesktop.TryExclude(window);
             window.Opacity = 1;
             if (keyboard is not null || mouse is not null) timer.Start();
         }
@@ -102,7 +101,7 @@ internal sealed class DesktopOverlayWindow : IDisposable
         }
     }
 
-    public bool IsExcludedFromCapture { get; }
+    public bool IsExcludedFromCapture => NativeDesktop.IsExcluded(window);
 
     internal bool IsVisible => window.IsVisible;
 

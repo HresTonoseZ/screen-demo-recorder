@@ -164,13 +164,13 @@
                         <TextBlock Grid.Row="1" Grid.Column="2" Text="Live" FontWeight="SemiBold" HorizontalAlignment="Center" Margin="0,0,0,4" />
                         <TextBlock Grid.Row="2" Text="Label" Margin="0,0,0,5" />
                         <CheckBox x:Name="LabelCheckBox" Grid.Row="2" Grid.Column="1" HorizontalAlignment="Center" Margin="0,0,0,5" ToolTip="Burn the label into the recording" Checked="CommonSetting_Changed" Unchecked="CommonSetting_Changed" />
-                        <CheckBox x:Name="DesktopLabelCheckBox" Grid.Row="2" Grid.Column="2" HorizontalAlignment="Center" Margin="0,0,0,5" ToolTip="Show the label live on the desktop" Checked="DesktopOverlaySetting_Changed" Unchecked="DesktopOverlaySetting_Changed" />
+                        <CheckBox x:Name="DesktopLabelCheckBox" Grid.Row="2" Grid.Column="2" HorizontalAlignment="Center" Margin="0,0,0,5" ToolTip="Show the label on the desktop while idle; recording uses flicker-free in-video composition" Checked="DesktopOverlaySetting_Changed" Unchecked="DesktopOverlaySetting_Changed" />
                         <TextBlock Grid.Row="3" Text="Pressed keys" Margin="0,0,0,5" />
                         <CheckBox x:Name="KeystrokesCheckBox" Grid.Row="3" Grid.Column="1" HorizontalAlignment="Center" Margin="0,0,0,5" ToolTip="Burn pressed keys into the recording" Checked="CommonSetting_Changed" Unchecked="CommonSetting_Changed" />
-                        <CheckBox x:Name="DesktopKeystrokesCheckBox" Grid.Row="3" Grid.Column="2" HorizontalAlignment="Center" Margin="0,0,0,5" ToolTip="Show pressed keys live on the desktop" Checked="DesktopOverlaySetting_Changed" Unchecked="DesktopOverlaySetting_Changed" />
+                        <CheckBox x:Name="DesktopKeystrokesCheckBox" Grid.Row="3" Grid.Column="2" HorizontalAlignment="Center" Margin="0,0,0,5" ToolTip="Show pressed keys on the desktop while idle; recording uses flicker-free in-video composition" Checked="DesktopOverlaySetting_Changed" Unchecked="DesktopOverlaySetting_Changed" />
                         <TextBlock Grid.Row="4" Text="Mouse clicks" />
                         <CheckBox x:Name="ClicksCheckBox" Grid.Row="4" Grid.Column="1" HorizontalAlignment="Center" ToolTip="Burn mouse-click highlights into the recording" Checked="CommonSetting_Changed" Unchecked="CommonSetting_Changed" />
-                        <CheckBox x:Name="DesktopClicksCheckBox" Grid.Row="4" Grid.Column="2" HorizontalAlignment="Center" ToolTip="Show mouse-click highlights live on the desktop" Checked="DesktopOverlaySetting_Changed" Unchecked="DesktopOverlaySetting_Changed" />
+                        <CheckBox x:Name="DesktopClicksCheckBox" Grid.Row="4" Grid.Column="2" HorizontalAlignment="Center" ToolTip="Show mouse-click highlights on the desktop while idle; recording uses flicker-free in-video composition" Checked="DesktopOverlaySetting_Changed" Unchecked="DesktopOverlaySetting_Changed" />
                         <Button Grid.Column="3" Grid.RowSpan="5" Content="Edit overlays" Margin="10,0,0,0" Click="EditOverlays_Click" VerticalAlignment="Center" />
                     </Grid>
                 </GroupBox>

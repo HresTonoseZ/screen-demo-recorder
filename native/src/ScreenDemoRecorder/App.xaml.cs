@@ -247,8 +247,8 @@ public partial class App : Application
                 var display = NativeDesktop.Displays().First();
                 using (var boundary = new RegionBoundary(display, new PixelRect(100, 100, 640, 360), "#7B61FFFF", 2))
                 {
-                    if (!boundary.IsVisible || !boundary.HasExpectedBounds || !boundary.IsPassive)
-                        throw new InvalidOperationException("The boundary is not visible, passive or correctly positioned.");
+                    if (!boundary.IsVisible || !boundary.HasExpectedBounds || !boundary.IsPassive || boundary.IsExcluded)
+                        throw new InvalidOperationException("The boundary is not visible, passive, correctly positioned or capture-affinity free.");
                 }
                 var liveProfile = store.GetActiveProfile();
                 liveProfile.Overlays.Desktop.ShowLabel = true;
@@ -256,8 +256,8 @@ public partial class App : Application
                 var liveBounds = new PixelRect(display.Bounds.X + 100, display.Bounds.Y + 100, 640, 360);
                 using (var liveOverlay = new DesktopOverlayWindow(liveBounds, liveProfile.Overlays, liveProfile.Capture))
                 {
-                    if (!liveOverlay.IsVisible || !liveOverlay.HasExpectedBounds || !liveOverlay.IsPassive)
-                        throw new InvalidOperationException("The live desktop overlay is not visible, passive or correctly positioned.");
+                    if (!liveOverlay.IsVisible || !liveOverlay.HasExpectedBounds || !liveOverlay.IsPassive || liveOverlay.IsExcludedFromCapture)
+                        throw new InvalidOperationException("The live desktop overlay is not visible, passive, correctly positioned or capture-affinity free.");
                 }
                 var selectorProfile = store.GetActiveProfile();
                 selectorProfile.Selection.HandleShape = SelectionHandleShape.Square;

@@ -629,7 +629,7 @@ public partial class MainWindow : Window
     {
         boundary?.Dispose(); boundary = null;
         desktopOverlay?.Dispose(); desktopOverlay = null;
-        if (PreviewMode || !TryGetDesktopOverlayBounds(out var bounds)) return;
+        if (PreviewMode || recordingBusy || !TryGetDesktopOverlayBounds(out var bounds)) return;
 
         try
         {

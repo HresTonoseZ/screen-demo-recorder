@@ -90,7 +90,9 @@ internal static class GifExportChecks
         profile.Output.GifFrameStep = 1;
         profile.Output.GifLoopCount = 0;
         profile.Output.FinalFrameDurationMilliseconds = 1500;
-        profile.Capture.GifFps = 10;
+        // Sample faster than the source recording so a single bad encoded frame
+        // cannot hide between the visual parity checkpoints.
+        profile.Capture.GifFps = 60;
         var keyGifPath = await GifExport.RunAsync(keysPath, content, profile);
         var keyGif = Load(keyGifPath);
         Require(Delay(keyGif.Frames[^1]) == 150, "GIF last-frame hold was ignored.");
@@ -98,7 +100,7 @@ internal static class GifExportChecks
             .FirstOrDefault(frame => !IsBlue(frame.Color));
         Require(unexpectedKeyFrame.Color is null,
             $"The overlay MP4 contains an unexpected background frame at GIF sample {unexpectedKeyFrame.Index}: {string.Join(',', unexpectedKeyFrame.Color ?? [])}.");
-        foreach (var (index, name) in new[] { (4, "visible"), (13, "expired") })
+        foreach (var (index, name) in new[] { (24, "visible"), (78, "expired") })
         {
             var actual = keyGif.Frames[index];
             using var expectedStream = File.OpenRead(Path.Combine(directory, $"keys-{name}-encoded.png"));
