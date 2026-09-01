@@ -1,5 +1,5 @@
 @echo off
-setlocal
+setlocal EnableExtensions EnableDelayedExpansion
 title Screen Demo Recorder - Native Build
 
 pushd "%~dp0"
@@ -7,15 +7,23 @@ echo Build started. Please wait...
 echo.
 
 for %%I in ("%~dp0..\..\..") do set "REPOSITORY_USER_HOME=%%~fI"
-set "DOTNET_EXE=%REPOSITORY_USER_HOME%\AppData\Local\Microsoft\dotnet\dotnet.exe"
 set "DOTNET_CLI_HOME=%REPOSITORY_USER_HOME%"
 set "NUGET_PACKAGES=%REPOSITORY_USER_HOME%\.nuget\packages"
 set "NUGET_HTTP_CACHE_PATH=%REPOSITORY_USER_HOME%\AppData\Local\NuGet\v3-cache"
+set "PSModuleAnalysisCachePath=%REPOSITORY_USER_HOME%\AppData\Local\Microsoft\Windows\PowerShell\ModuleAnalysisCache"
+set "DOTNET_EXE="
 
-if not exist "%DOTNET_EXE%" (
-    echo Required .NET SDK launcher was not found:
-    echo %DOTNET_EXE%
-    echo Install .NET SDK 10.0.400 for the repository owner.
+for %%D in (
+    "%REPOSITORY_USER_HOME%\AppData\Local\Microsoft\dotnet\dotnet.exe"
+    "%LOCALAPPDATA%\Microsoft\dotnet\dotnet.exe"
+    "%ProgramFiles%\dotnet\dotnet.exe"
+) do (
+    if not defined DOTNET_EXE if exist "%%~dpDsdk\10.0.400\dotnet.dll" set "DOTNET_EXE=%%~D"
+)
+
+if not defined DOTNET_EXE (
+    echo Required .NET SDK 10.0.400 was not found.
+    echo Checked the repository owner, current user and system .NET installations.
     echo.
     popd
     if not defined SDR_BUILD_NO_WAIT pause
