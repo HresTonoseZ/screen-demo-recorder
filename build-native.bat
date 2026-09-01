@@ -14,7 +14,6 @@ if not exist "%DOTNET_EXE%" (
     echo %DOTNET_EXE%
     echo Install .NET SDK 10.0.400 for the repository owner.
     echo.
-    pause
     popd
     exit /b 1
 )
@@ -22,6 +21,7 @@ if not exist "%DOTNET_EXE%" (
 echo Using .NET SDK: %DOTNET_EXE%
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0build-native.ps1" -DotNet "%DOTNET_EXE%" %*
 set "BUILD_EXIT=%ERRORLEVEL%"
+popd
 
 echo.
 if not "%BUILD_EXIT%"=="0" (
@@ -30,8 +30,5 @@ if not "%BUILD_EXIT%"=="0" (
     echo Build completed successfully.
     echo Executable: %~dp0dist\native-preview\ScreenDemoRecorder.exe
 )
-echo.
-pause
 
-popd
 exit /b %BUILD_EXIT%
