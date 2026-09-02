@@ -25,6 +25,8 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Native solution build failed.' }
     & $DotNet "native\tests\ScreenDemoRecorder.CoreChecks\$verificationBase$Configuration\net10.0\ScreenDemoRecorder.CoreChecks.dll"
     if ($LASTEXITCODE -ne 0) { throw 'Native core checks failed.' }
+    & (Join-Path $PSScriptRoot 'native\tools\Acquire-Ffmpeg.ps1')
+    if ($LASTEXITCODE -ne 0) { throw 'Verified FFmpeg runtime acquisition failed.' }
     & $DotNet publish native\src\ScreenDemoRecorder\ScreenDemoRecorder.csproj -c $Configuration -r win-x64 --self-contained true -p:PublishSingleFile=false -o dist\native-preview --nologo --disable-build-servers
     if ($LASTEXITCODE -ne 0) { throw 'Native publishing failed.' }
     $exe = Join-Path $PSScriptRoot 'dist\native-preview\ScreenDemoRecorder.exe'
@@ -32,6 +34,10 @@ try {
     $run = Start-Process -FilePath $exe -ArgumentList @('--smoke-test', ('"' + $smokePath + '"')) -WindowStyle Hidden -PassThru -Wait
     if ($run.ExitCode -ne 0) { throw "Native UI checks failed. See $smokePath\failure.txt" }
     Get-Content -LiteralPath (Join-Path $smokePath 'result.txt')
+    $cpuPipelinePath = Join-Path $PSScriptRoot ('build\native-cpu-pipeline-' + [Guid]::NewGuid().ToString('N'))
+    $cpuPipeline = Start-Process -FilePath $exe -ArgumentList @('--cpu-pipeline-smoke-test', ('"' + $cpuPipelinePath + '"')) -WindowStyle Hidden -PassThru -Wait
+    if ($cpuPipeline.ExitCode -ne 0) { throw "Native CPU pipeline checks failed. See $cpuPipelinePath\failure.txt" }
+    Get-Content -LiteralPath (Join-Path $cpuPipelinePath 'result.txt')
     if ($VerifyRecording) {
         $recordingPath = Join-Path $PSScriptRoot ('build\native-recording-' + [Guid]::NewGuid().ToString('N'))
         $check = Start-Process -FilePath $exe -ArgumentList @('--recording-smoke-test', ('"' + $recordingPath + '"')) -WindowStyle Hidden -PassThru -Wait

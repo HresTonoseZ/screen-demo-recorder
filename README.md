@@ -221,6 +221,11 @@ deleted.
 
 Build and verify the self-contained preview with `.\build-native.ps1`, then run
 `dist\native-preview\ScreenDemoRecorder.exe`. Keep its adjacent files together.
+The build downloads one pinned Windows x64 LGPL shared FFmpeg package, verifies
+the pinned release checksum manifest and archive SHA-256, and bundles the runtime
+beside the application. It also runs a real WGC-to-CPU-to-FFV1 round-trip check;
+the application never searches the system `PATH` for FFmpeg. See
+[`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) for version and license details.
 MP4 capture and GIF export are connected; see [native progress](docs/NATIVE_PROGRESS.md)
 for implemented behavior and remaining work.
 

@@ -40,9 +40,16 @@ public partial class App : Application
         ShutdownMode = ShutdownMode.OnExplicitShutdown;
         string? smokeDirectory = e.Args is ["--smoke-test", var output] ? Path.GetFullPath(output) : null;
         string? recordingCheckDirectory = e.Args is ["--recording-smoke-test", var recordingOutput] ? Path.GetFullPath(recordingOutput) : null;
+        string? cpuPipelineCheckDirectory = e.Args is ["--cpu-pipeline-smoke-test", var cpuPipelineOutput] ? Path.GetFullPath(cpuPipelineOutput) : null;
         string? startupProbeDirectory = e.Args is ["--startup-probe", var startupOutput] ? Path.GetFullPath(startupOutput) : null;
         try
         {
+            if (cpuPipelineCheckDirectory is not null)
+            {
+                await CpuPipelineSmokeCheck.RunAsync(cpuPipelineCheckDirectory);
+                Shutdown(0);
+                return;
+            }
             if (recordingCheckDirectory is not null)
             {
                 await RecordingSmokeCheck.RunAsync(recordingCheckDirectory);
@@ -331,7 +338,9 @@ public partial class App : Application
         }
         catch (Exception error)
         {
-            if (recordingCheckDirectory is not null)
+            if (cpuPipelineCheckDirectory is not null)
+                await File.WriteAllTextAsync(Path.Combine(cpuPipelineCheckDirectory, "failure.txt"), error.ToString());
+            else if (recordingCheckDirectory is not null)
                 await File.WriteAllTextAsync(Path.Combine(recordingCheckDirectory, "failure.txt"), error.ToString());
             else if (smokeDirectory is not null)
                 await File.WriteAllTextAsync(Path.Combine(smokeDirectory, "failure.txt"), error.ToString());

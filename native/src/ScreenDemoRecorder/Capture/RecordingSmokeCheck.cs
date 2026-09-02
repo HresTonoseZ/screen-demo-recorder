@@ -17,6 +17,7 @@ internal static class RecordingSmokeCheck
     public static async Task RunAsync(string directory)
     {
         Directory.CreateDirectory(directory);
+        CpuFrameReadbackChecks.Run();
         var canvas = new Canvas { Background = Brushes.Red };
         var block = new Border { Width = 321, Height = 181, Background = Brushes.Lime };
         Canvas.SetLeft(block, 40); Canvas.SetTop(block, 30); canvas.Children.Add(block);

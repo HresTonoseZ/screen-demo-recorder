@@ -17,4 +17,11 @@
     <PackageReference Include="Vortice.MediaFoundation" Version="3.8.3" />
     <ProjectReference Include="..\ScreenDemoRecorder.Core\ScreenDemoRecorder.Core.csproj" />
   </ItemGroup>
+  <ItemGroup Condition="Exists('..\..\vendor\ffmpeg\ffmpeg.exe')">
+    <Content Include="..\..\vendor\ffmpeg\**\*">
+      <Link>ffmpeg\%(RecursiveDir)%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
+  </ItemGroup>
 </Project>
