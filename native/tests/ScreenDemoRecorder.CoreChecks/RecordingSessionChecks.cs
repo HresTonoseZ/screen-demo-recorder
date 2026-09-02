@@ -59,6 +59,14 @@ internal static class RecordingSessionChecks
             "The keystroke event JSON is invalid.");
         Require(second is { Sequence: 1, TimestampTicks: 2_500_000, Position: { X: 123, Y: 45 } },
             "The mouse event JSON is invalid.");
+        await File.AppendAllTextAsync(store.EventsPath, "{\"schemaVersion\":");
+        var reopened = await RecordingSessionStore.OpenAsync(store.DirectoryPath);
+        var recoveredEvents = await reopened.Store.ReadEventsAsync();
+        Require(reopened.Manifest.SessionId == manifest.SessionId && recoveredEvents.Length == 2,
+            "Recovery did not preserve valid events before a truncated final journal append.");
+        await File.WriteAllBytesAsync(store.CleanVideoPath, [0]);
+        Require(RecordingSessionStore.FindRecoverable(directory).SequenceEqual([store.DirectoryPath]),
+            "Recoverable session discovery returned the wrong directories.");
 
         var disposedJournal = new RecordingEventJournal(Path.Combine(store.DirectoryPath, "dispose-check.jsonl"));
         await disposedJournal.DisposeAsync();

@@ -333,7 +333,30 @@ public partial class App : Application
             var profiles = new ProfileStore();
             await profiles.LoadAsync();
             ApplicationThemeManager.Apply(profiles.GetActiveProfile().Application.Theme);
+            string? recoveryStatus = null;
+            var recoverable = RecordingRecovery.Find();
+            if (recoverable.Length > 0)
+            {
+                var recoverNow = MessageBox.Show(
+                    $"Found {recoverable.Length} unfinished recording(s). Recover them now?\n\n" +
+                    "Choosing No keeps every clean recording and event timeline for the next launch.",
+                    "Recover Recordings", MessageBoxButton.YesNo, MessageBoxImage.Question);
+                if (recoverNow == MessageBoxResult.Yes)
+                {
+                    var recovery = new RecordingRecoveryWindow(recoverable);
+                    recovery.ShowDialog();
+                    recoveryStatus = recovery.RecoveredPaths.Count > 0
+                        ? $"Recovered {recovery.RecoveredPaths.Count} recording(s)"
+                        : "Unfinished recordings retained";
+                }
+                else recoveryStatus = $"{recoverable.Length} unfinished recording(s) retained";
+            }
             var window = new MainWindow(profiles);
+            if (recoveryStatus is not null)
+            {
+                window.StatusText.Text = recoveryStatus;
+                window.StatusText.ToolTip = CpuRecordingSession.SessionRootPath;
+            }
             MainWindow = window;
             ShutdownMode = ShutdownMode.OnMainWindowClose;
             window.Show();

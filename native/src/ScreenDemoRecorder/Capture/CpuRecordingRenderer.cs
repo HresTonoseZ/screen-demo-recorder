@@ -4,12 +4,15 @@ using ScreenDemoRecorder.Core.Services;
 
 namespace ScreenDemoRecorder.Capture;
 
+internal sealed record CpuRenderProgress(int Frames, int TotalFrames, double Percent);
+
 internal static class CpuRecordingRenderer
 {
     public static async Task RenderAsync(string ffmpegPath, string cleanVideoPath, string outputPath,
         int width, int height, double frameRate, Mp4OutputPlan outputPlan, QualityPreset quality,
         RecordingOverlays overlays, OverlaySettings overlaySettings,
-        IReadOnlyList<RecordingEvent> events, CancellationToken cancellationToken = default)
+        IReadOnlyList<RecordingEvent> events, int expectedFrames = 0,
+        Action<CpuRenderProgress>? progress = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(overlays);
         ArgumentNullException.ThrowIfNull(overlaySettings);
@@ -56,6 +59,9 @@ internal static class CpuRecordingRenderer
                 compositor.Draw(frame, visible.Keystrokes, visible.Clicks);
                 await encoder.WriteAsync(frame, cancellationToken).ConfigureAwait(false);
                 frameIndex++;
+                var total = Math.Max(expectedFrames, (int)Math.Min(int.MaxValue, frameIndex));
+                progress?.Invoke(new CpuRenderProgress((int)Math.Min(int.MaxValue, frameIndex), total,
+                    expectedFrames <= 0 ? 0 : Math.Min(99, frameIndex * 100d / expectedFrames)));
             }
             if (frameIndex == 0) throw new InvalidDataException("The clean recording contains no video frames.");
             await decoder.WaitForExitAsync(cancellationToken).ConfigureAwait(false);
@@ -66,6 +72,8 @@ internal static class CpuRecordingRenderer
             if (!File.Exists(partialPath) || new FileInfo(partialPath).Length == 0)
                 throw new InvalidDataException("FFmpeg reported success but produced an empty MP4.");
             File.Move(partialPath, outputPath);
+            progress?.Invoke(new CpuRenderProgress((int)Math.Min(int.MaxValue, frameIndex),
+                Math.Max(expectedFrames, (int)Math.Min(int.MaxValue, frameIndex)), 100));
         }
         catch
         {

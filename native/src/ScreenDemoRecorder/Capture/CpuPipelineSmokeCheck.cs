@@ -63,11 +63,73 @@ internal static class CpuPipelineSmokeCheck
         Require(finalPixels.Length == frameSize * frameCount,
             "The final CPU-rendered MP4 changed the frame count or geometry.");
 
+        var cancelledPath = Path.Combine(directory, "cpu-cancelled-final.mp4");
+        using (var cancellation = new CancellationTokenSource())
+        {
+            var cancelled = false;
+            try
+            {
+                await CpuRecordingRenderer.RenderAsync(ffmpeg, videoPath, cancelledPath, width, height, 25,
+                    Mp4OutputPlan.Create(width, height, 0), QualityPreset.Balanced,
+                    new RecordingOverlays(null, null, null), new OverlaySettings(), [], frameCount,
+                    progress =>
+                    {
+                        if (progress.Frames >= 2) cancellation.Cancel();
+                    }, cancellation.Token);
+            }
+            catch (OperationCanceledException) { cancelled = true; }
+            Require(cancelled && File.Exists(videoPath) && !File.Exists(cancelledPath),
+                "Cancelling the CPU render did not preserve the clean intermediate or published a partial MP4.");
+        }
+        await CheckRecoveryAsync(videoPath, directory, width, height, frameCount);
+
         var captureResult = await CheckWgcCaptureAsync(ffmpeg, directory);
         await File.WriteAllTextAsync(Path.Combine(directory, "result.txt"),
-            $"PASS: GPU staging readback, CPU overlay blending, {frameCount} generated FFV1/OpenH264 frames, " +
+            $"PASS: GPU staging readback, CPU overlay blending, cancellation/recovery, {frameCount} generated FFV1/OpenH264 frames, " +
             $"{captureResult.FrameCount} real WGC frames, and the normal CPU recording session with shared live/journal events decoded successfully.\n" +
             $"{videoPath}\n{finalPath}\n{captureResult.Path}\n");
+    }
+
+    private static async Task CheckRecoveryAsync(string cleanSource, string outputDirectory,
+        int width, int height, int frameCount)
+    {
+        var profile = new RecorderProfile();
+        profile.Output.Directory = outputDirectory;
+        profile.Output.FilenameTemplate = "cpu-recovery-{counter}";
+        profile.Overlays.Keystrokes.Enabled = true;
+        var manifest = new RecordingSessionManifest
+        {
+            SessionId = $"session-recovery-check-{Guid.NewGuid():N}",
+            CreatedAtUtc = DateTimeOffset.UtcNow,
+            ApplicationVersion = "test",
+            SourceGeometry = new CaptureRegion { Width = width, Height = height },
+            FrameRate = 25,
+            ActiveDurationTicks = TimeSpan.FromSeconds(frameCount / 25d).Ticks,
+            Profile = profile,
+        };
+        var session = await RecordingSessionStore.CreateAsync(CpuRecordingSession.SessionRootPath, manifest);
+        try
+        {
+            File.Copy(cleanSource, session.CleanVideoPath);
+            await using (var journal = session.CreateEventJournal())
+            {
+                await journal.AppendAsync(new RecordingEvent
+                {
+                    Kind = RecordingEventKind.Keystroke,
+                    TimestampTicks = TimeSpan.FromMilliseconds(40).Ticks,
+                    Keys = ["Ctrl", "K"],
+                });
+            }
+            Require(RecordingRecovery.Find().Contains(session.DirectoryPath, StringComparer.OrdinalIgnoreCase),
+                "The application did not discover a recoverable CPU session.");
+            var recovered = await RecordingRecovery.RenderAsync(session.DirectoryPath);
+            Require(File.Exists(recovered) && !Directory.Exists(session.DirectoryPath),
+                "The application did not render and retire a recovered CPU session.");
+        }
+        finally
+        {
+            if (Directory.Exists(session.DirectoryPath)) CpuRecordingSession.RemoveSession(session.DirectoryPath);
+        }
     }
 
     private static async Task<(string Path, int FrameCount)> CheckWgcCaptureAsync(string ffmpeg, string directory)

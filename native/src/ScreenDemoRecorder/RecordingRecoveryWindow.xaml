@@ -1,0 +1,24 @@
+<Window x:Class="ScreenDemoRecorder.RecordingRecoveryWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Recover Recordings" Width="540" Height="280" ResizeMode="NoResize"
+        WindowStartupLocation="CenterScreen" ShowInTaskbar="False"
+        Background="{DynamicResource WindowBrush}" Foreground="{DynamicResource TextBrush}"
+        FontFamily="Segoe UI Variable Text, Segoe UI" FontSize="13">
+    <Grid Margin="22">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+        <TextBlock Text="Recovering recordings" FontSize="22" FontWeight="SemiBold" />
+        <TextBlock x:Name="SessionText" Grid.Row="1" Margin="0,12,0,0" TextWrapping="Wrap" />
+        <ProgressBar x:Name="Progress" Grid.Row="2" Height="8" Margin="0,14,0,0" Minimum="0" Maximum="100" />
+        <TextBlock x:Name="ProgressText" Grid.Row="3" Margin="0,10,0,0"
+                   Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap" />
+        <Button x:Name="ActionButton" Grid.Row="4" Content="Cancel" HorizontalAlignment="Right"
+                Width="100" Click="ActionButton_Click" />
+    </Grid>
+</Window>

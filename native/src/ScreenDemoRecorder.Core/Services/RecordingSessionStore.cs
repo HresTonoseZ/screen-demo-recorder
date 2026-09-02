@@ -39,6 +39,59 @@ public sealed class RecordingSessionStore
         return store;
     }
 
+    public static async Task<(RecordingSessionStore Store, RecordingSessionManifest Manifest)> OpenAsync(
+        string directoryPath, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(directoryPath);
+        var store = new RecordingSessionStore(Path.GetFullPath(directoryPath));
+        if (!File.Exists(store.ManifestPath))
+            throw new FileNotFoundException("The recording session manifest is missing.", store.ManifestPath);
+        await using var stream = new FileStream(store.ManifestPath, FileMode.Open, FileAccess.Read, FileShare.Read,
+            4096, FileOptions.Asynchronous | FileOptions.SequentialScan);
+        var manifest = await JsonSerializer.DeserializeAsync<RecordingSessionManifest>(stream, JsonOptions,
+            cancellationToken).ConfigureAwait(false) ?? throw new InvalidDataException("The recording session manifest is empty.");
+        Validate(manifest);
+        if (!string.Equals(Path.GetFileName(store.DirectoryPath), manifest.SessionId, StringComparison.Ordinal))
+            throw new InvalidDataException("The recording session directory does not match its manifest.");
+        return (store, manifest);
+    }
+
+    public static string[] FindRecoverable(string rootDirectory)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(rootDirectory);
+        var root = Path.GetFullPath(rootDirectory);
+        if (!Directory.Exists(root)) return [];
+        return Directory.EnumerateDirectories(root)
+            .Where(directory => File.Exists(Path.Combine(directory, "session.json")) &&
+                File.Exists(Path.Combine(directory, "clean.mkv")) && File.Exists(Path.Combine(directory, "events.jsonl")))
+            .OrderBy(directory => directory, StringComparer.Ordinal)
+            .ToArray();
+    }
+
+    public async Task<RecordingEvent[]> ReadEventsAsync(CancellationToken cancellationToken = default)
+    {
+        if (!File.Exists(EventsPath)) return [];
+        var lines = await File.ReadAllLinesAsync(EventsPath, cancellationToken).ConfigureAwait(false);
+        List<RecordingEvent> events = [];
+        for (var index = 0; index < lines.Length; index++)
+        {
+            if (string.IsNullOrWhiteSpace(lines[index])) continue;
+            try
+            {
+                var entry = JsonSerializer.Deserialize<RecordingEvent>(lines[index], JsonOptions)
+                    ?? throw new InvalidDataException($"Recording event {index} is empty.");
+                if (entry.SchemaVersion != RecordingEvent.CurrentSchemaVersion || entry.TimestampTicks < 0)
+                    throw new InvalidDataException($"Recording event {index} is invalid.");
+                events.Add(entry);
+            }
+            catch (JsonException) when (index == lines.Length - 1)
+            {
+                // A process crash can leave only the final append incomplete.
+            }
+        }
+        return events.OrderBy(entry => entry.TimestampTicks).ThenBy(entry => entry.Sequence).ToArray();
+    }
+
     public async Task WriteManifestAsync(RecordingSessionManifest manifest, CancellationToken cancellationToken = default)
     {
         Validate(manifest);

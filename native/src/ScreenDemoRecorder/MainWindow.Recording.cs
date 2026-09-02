@@ -108,7 +108,8 @@ public partial class MainWindow
                 UpdateSessionStatus();
                 timer.Start();
             }
-            var path = await recording.Completion;
+            var completedRecording = recording;
+            var path = await completedRecording.Completion;
             timer.Stop();
             recording = null;
             PauseButton.Visibility = Visibility.Collapsed;
@@ -124,9 +125,11 @@ public partial class MainWindow
                 try { await store.AddRecentFileAsync(path); }
                 catch { recentListUpdated = false; }
             }
-            StatusText.Text = path is null ? "Recording cancelled" : $"Saved: {Path.GetFileName(path)}";
+            StatusText.Text = path is null
+                ? completedRecording.WasRenderCancelled ? "Rendering cancelled · recoverable recording retained" : "Recording cancelled"
+                : $"Saved: {Path.GetFileName(path)}";
             if (!recentListUpdated) StatusText.Text += " · recent list was not updated";
-            StatusText.ToolTip = path;
+            StatusText.ToolTip = path ?? completedRecording.RecoveryPath;
             if (path is not null) NotifyRecordingSaved(path);
             if (path is not null && snapshot.Output.OpenFolderAfterSave)
                 Process.Start(new ProcessStartInfo(Path.GetDirectoryName(path)!) { UseShellExecute = true });
@@ -188,6 +191,21 @@ public partial class MainWindow
         };
         StatusText.Text = $"{stage} · {recording.Elapsed:hh\\:mm\\:ss}{limit}{encoder}{liveWarning}";
         StatusText.ToolTip = liveOverlayWarning;
+        if (recording.Stage == CpuRecordingStage.Rendering)
+        {
+            var progress = recording.RenderProgress;
+            ExportProgress.Value = progress.Percent;
+            ExportProgress.Visibility = Visibility.Visible;
+            CancelButton.IsEnabled = !recording.WasRenderCancelled;
+            CancelButton.ToolTip = "Cancel rendering and retain the recoverable recording";
+            StatusText.Text = recording.WasRenderCancelled ? "Cancelling rendering · recoverable recording will be retained" :
+                $"Rendering overlays · {progress.Percent:F0}% · {progress.Frames} / {progress.TotalFrames} frames";
+        }
+        else if (recording.Stage == CpuRecordingStage.Finalizing)
+        {
+            CancelButton.IsEnabled = !recording.WasRenderCancelled;
+            CancelButton.ToolTip = "Cancel finalization and retain the recoverable recording";
+        }
     }
 
     private void PauseButton_Click(object sender, RoutedEventArgs e) => ExecuteRecordingCommand(RecorderCommand.TogglePause);
@@ -205,6 +223,18 @@ public partial class MainWindow
         }
         if (recording is null) { countdown?.Cancel(); return; }
         var active = recording;
+        if (active.Stage is CpuRecordingStage.Finalizing or CpuRecordingStage.Rendering)
+        {
+            if (MessageBox.Show(this,
+                    "Cancel final rendering? The clean recording and input timeline will be retained for recovery.",
+                    "Cancel Rendering", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+            if (active.CancelRendering())
+            {
+                CancelButton.IsEnabled = false;
+                StatusText.Text = "Cancelling rendering · recoverable recording will be retained";
+            }
+            return;
+        }
         if (active.IsStopped) return;
         if (MessageBox.Show(this, "Discard the current recording? No video will be saved.", "Discard Recording",
                 MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;

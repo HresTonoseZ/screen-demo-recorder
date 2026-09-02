@@ -146,7 +146,8 @@ the source instead of corrected separately by each consumer.
 - Capture-excluded live boundary, label, keystroke, and click windows are implemented and covered by WGC pixel probes.
 - The offline path now decodes FFV1 to BGRA, composites existing label/key/click rasters with a managed premultiplied-alpha blender, applies bounded separable label blur, and creates H.264 MP4 with the LGPL OpenH264 CPU encoder.
 - Normal MP4/GIF recording now uses one CPU session owner for clean capture, the recoverable journal, live event fan-out, offline composition, output resizing, and final OpenH264 encoding.
-- Render progress/cancellation, startup recovery UI, removal of the legacy GPU recording compositor, and the cross-computer endurance matrix remain pending.
+- Frame-accurate render progress, cancellation that retains the clean session, and startup recovery of MP4/GIF output are implemented.
+- Removal of the legacy GPU recording compositor and the cross-computer endurance matrix remain pending.
 
 ## Delivery phases
 

@@ -26,6 +26,7 @@ internal sealed class CpuRecordingSession
         new UnboundedChannelOptions { SingleReader = true, SingleWriter = false });
     private readonly List<RecordingEvent> events = [];
     private readonly TaskCompletionSource<bool> ready = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private readonly CancellationTokenSource renderCancellation = new();
     private CpuIntermediateRecording? cleanRecording;
     private KeyboardCapture? keyboard;
     private MouseClickCapture? mouse;
@@ -34,7 +35,11 @@ internal sealed class CpuRecordingSession
     private bool stopped;
     private bool discarded;
     private bool finished;
+    private bool renderCancelled;
     private volatile CpuRecordingStage stage = CpuRecordingStage.Starting;
+    private int renderedFrames;
+    private int totalRenderFrames;
+    private int renderPercent;
 
     public Task<bool> Ready => ready.Task;
 
@@ -49,6 +54,13 @@ internal sealed class CpuRecordingSession
     public bool UsesSoftwareEncoder => true;
 
     public CpuRecordingStage Stage => stage;
+
+    public CpuRenderProgress RenderProgress => new(
+        Volatile.Read(ref renderedFrames), Volatile.Read(ref totalRenderFrames), Volatile.Read(ref renderPercent));
+
+    public bool WasRenderCancelled => Volatile.Read(ref renderCancelled);
+
+    public string? RecoveryPath { get; private set; }
 
     public CpuRecordingSession(GraphicsCaptureItem captureItem, PixelRect region, RecorderProfile settings,
         double fps, RecordingOverlays renderedOverlays, Func<PixelPoint, PixelPoint?>? screenPointMapper = null,
@@ -107,6 +119,17 @@ internal sealed class CpuRecordingSession
         }
     }
 
+    public bool CancelRendering()
+    {
+        lock (sync)
+        {
+            if (finished || stage is not (CpuRecordingStage.Finalizing or CpuRecordingStage.Rendering)) return false;
+            renderCancelled = true;
+            renderCancellation.Cancel();
+            return true;
+        }
+    }
+
     private async Task<string?> RunAsync()
     {
         RecordingSessionStore? session = null;
@@ -124,7 +147,7 @@ internal sealed class CpuRecordingSession
                 FrameRate = frameRate,
                 Profile = profile,
             };
-            var sessionRoot = SessionRoot();
+            var sessionRoot = SessionRootPath;
             session = await RecordingSessionStore.CreateAsync(sessionRoot, manifest).ConfigureAwait(false);
             journal = session.CreateEventJournal();
             journalWorker = WriteJournalAsync(journal);
@@ -157,38 +180,48 @@ internal sealed class CpuRecordingSession
             journal = null;
             if (!started)
             {
-                DeleteSession(session.DirectoryPath);
+                RemoveSession(session.DirectoryPath);
                 return null;
             }
             manifest.ActiveDurationTicks = cleanRecording.Elapsed.Ticks;
             await session.WriteManifestAsync(manifest).ConfigureAwait(false);
             if (discarded)
             {
-                DeleteSession(session.DirectoryPath);
+                RemoveSession(session.DirectoryPath);
                 return null;
             }
 
             var renderPath = Path.Combine(session.DirectoryPath, "composed.mp4");
             stage = CpuRecordingStage.Rendering;
+            renderCancellation.Token.ThrowIfCancellationRequested();
             var outputPlan = Mp4OutputPlan.Create(area.Width, area.Height,
                 profile.Output.Format == OutputFormat.Mp4 ? profile.Output.Mp4Width : 0);
+            var expectedFrames = Math.Max(1, (int)Math.Ceiling(cleanRecording.Elapsed.TotalSeconds * frameRate));
+            Volatile.Write(ref totalRenderFrames, expectedFrames);
             await CpuRecordingRenderer.RenderAsync(FfmpegRuntime.RequireExecutable(), session.CleanVideoPath,
                 renderPath, area.Width, area.Height, frameRate, outputPlan, profile.Output.Quality,
-                overlays, profile.Overlays, events).ConfigureAwait(false);
+                overlays, profile.Overlays, events, expectedFrames, UpdateRenderProgress,
+                renderCancellation.Token).ConfigureAwait(false);
             output = new RecordingOutput(profile.Output,
                 profile.Overlays.Label.Lines.FirstOrDefault(line => line.Enabled)?.Text ?? "Recording");
             var temporaryOutput = output.PrepareForExternalWriter();
             File.Move(renderPath, temporaryOutput);
             var destination = output.Commit();
-            DeleteSession(session.DirectoryPath);
+            RemoveSession(session.DirectoryPath);
             stage = CpuRecordingStage.Completed;
             return destination;
+        }
+        catch (OperationCanceledException) when (renderCancelled)
+        {
+            RecoveryPath = session?.DirectoryPath;
+            output?.Discard();
+            return null;
         }
         catch (Exception error)
         {
             if (discarded)
             {
-                if (session is not null) DeleteSession(session.DirectoryPath);
+                if (session is not null) RemoveSession(session.DirectoryPath);
                 output?.Discard();
                 return null;
             }
@@ -210,6 +243,7 @@ internal sealed class CpuRecordingSession
                 {
                     if (journal is not null) await journal.DisposeAsync().ConfigureAwait(false);
                     lock (sync) finished = true;
+                    renderCancellation.Dispose();
                     output?.Dispose();
                 }
             }
@@ -316,16 +350,23 @@ internal sealed class CpuRecordingSession
         }
     }
 
-    private static void DeleteSession(string path)
+    private void UpdateRenderProgress(CpuRenderProgress progress)
+    {
+        Volatile.Write(ref renderedFrames, progress.Frames);
+        Volatile.Write(ref totalRenderFrames, progress.TotalFrames);
+        Volatile.Write(ref renderPercent, (int)Math.Round(progress.Percent));
+    }
+
+    internal static void RemoveSession(string path)
     {
         var fullPath = Path.GetFullPath(path);
-        var root = SessionRoot() + Path.DirectorySeparatorChar;
+        var root = SessionRootPath + Path.DirectorySeparatorChar;
         if (!fullPath.StartsWith(root, StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException("The recording session is outside the managed session directory.");
         if (Directory.Exists(fullPath)) Directory.Delete(fullPath, recursive: true);
     }
 
-    private static string SessionRoot() => Path.Combine(
+    internal static string SessionRootPath { get; } = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "Screen Demo Recorder", "Sessions");
 }
