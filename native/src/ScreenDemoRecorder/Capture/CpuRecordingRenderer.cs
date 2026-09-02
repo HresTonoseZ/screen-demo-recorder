@@ -1,12 +1,14 @@
 using System.Diagnostics;
 using ScreenDemoRecorder.Core.Models;
+using ScreenDemoRecorder.Core.Services;
 
 namespace ScreenDemoRecorder.Capture;
 
 internal static class CpuRecordingRenderer
 {
     public static async Task RenderAsync(string ffmpegPath, string cleanVideoPath, string outputPath,
-        int width, int height, double frameRate, RecordingOverlays overlays, OverlaySettings overlaySettings,
+        int width, int height, double frameRate, Mp4OutputPlan outputPlan, QualityPreset quality,
+        RecordingOverlays overlays, OverlaySettings overlaySettings,
         IReadOnlyList<RecordingEvent> events, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(overlays);
@@ -35,7 +37,11 @@ internal static class CpuRecordingRenderer
         var diagnostics = decoder.StandardError.ReadToEndAsync(cancellationToken);
         try
         {
-            await using var encoder = new FfmpegMp4Encoder(ffmpegPath, partialPath, width, height, frameRate);
+            var bitsPerPixel = quality switch { QualityPreset.Efficient => 0.08, QualityPreset.Crisp => 0.24, _ => 0.14 };
+            var bitrate = (int)Math.Clamp(outputPlan.Width * (double)outputPlan.Height * frameRate * bitsPerPixel,
+                500_000, 80_000_000);
+            await using var encoder = new FfmpegMp4Encoder(ffmpegPath, partialPath, width, height,
+                outputPlan, frameRate, bitrate);
             long frameIndex = 0;
             while (true)
             {

@@ -638,7 +638,8 @@ public partial class MainWindow : Window
         {
             var live = profile.Overlays.Desktop;
             if (live.ShowLabel || live.ShowKeystrokes || live.ShowMouseClicks)
-                desktopOverlay = new DesktopOverlayWindow(bounds, profile.Overlays, profile.Capture);
+                desktopOverlay = new DesktopOverlayWindow(bounds, profile.Overlays, profile.Capture,
+                    captureInput: recording is null, recordingTime: recording is null ? null : () => recording.Elapsed);
 
             if (BoundaryCheckBox.IsChecked == true && WindowSource.IsChecked != true)
                 boundary = new RegionBoundary(bounds, profile.Selection.SelectionColor, profile.Selection.LineWidth);

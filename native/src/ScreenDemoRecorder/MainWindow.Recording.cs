@@ -10,7 +10,7 @@ namespace ScreenDemoRecorder;
 
 public partial class MainWindow
 {
-    private Mp4Recording? recording;
+    private CpuRecordingSession? recording;
     private CancellationTokenSource? countdown;
     private CancellationTokenSource? exportCancellation;
     private bool closingAfterRecording;
@@ -80,16 +80,18 @@ public partial class MainWindow
             if (snapshot.Output.Format == OutputFormat.Gif)
                 _ = new GifExportPlan(area.Width, area.Height, TimeSpan.FromSeconds(1), snapshot.Capture, snapshot.Output);
             RecordButton.Content = "Starting…";
-            StatusText.Text = "Preparing screen capture and the H.264 encoder…";
+            StatusText.Text = "Preparing clean CPU capture…";
             var overlays = RecordingOverlayPipeline.Create(snapshot, area.Width, area.Height);
             boundary?.Dispose(); boundary = null;
             desktopOverlay?.Dispose(); desktopOverlay = null;
             NativeDesktop.FlushComposition();
-            recording = new Mp4Recording(target.Item, area, snapshot,
+            recording = new CpuRecordingSession(target.Item, area, snapshot,
                 snapshot.Capture.AutomaticFps ? 30 : snapshot.Capture.RecordingFps,
-                overlays.Label, overlays.Keystrokes, overlays.Clicks,
+                overlays,
                 screenPointMapper: target.MapScreenPoint,
-                sourceValidation: target.Validate);
+                sourceValidation: target.Validate,
+                liveKeystroke: (chord, time) => desktopOverlay?.AddKeystroke(chord, time),
+                liveClick: (position, button, time) => desktopOverlay?.AddMouseClick(position, button, time));
             var startupTimeout = Task.Delay(TimeSpan.FromSeconds(45));
             var startup = await Task.WhenAny(recording.Ready, recording.Completion, startupTimeout);
             if (startup == startupTimeout)
@@ -168,7 +170,8 @@ public partial class MainWindow
     {
         if (recording is null) return;
         var finishing = recording.IsStopped;
-        RecordButton.Content = finishing ? "Saving MP4…" : "Stop & save";
+        RecordButton.Content = recording.Stage == CpuRecordingStage.Rendering ? "Rendering overlays…" :
+            finishing ? "Finalizing recording…" : "Stop & save";
         RecordButton.IsEnabled = !finishing;
         PauseButton.Content = recording.IsPaused ? "Resume" : "Pause";
         PauseButton.IsEnabled = !finishing;
@@ -176,7 +179,14 @@ public partial class MainWindow
         var limit = profile.Capture.MaximumDurationSeconds > 0 ? $" / {TimeSpan.FromSeconds(profile.Capture.MaximumDurationSeconds):hh\\:mm\\:ss}" : "";
         var encoder = recording.UsesSoftwareEncoder ? " · software encoder" : "";
         var liveWarning = liveOverlayWarning is null ? "" : " · live overlay disabled";
-        StatusText.Text = $"{(finishing ? "Finishing" : recording.IsPaused ? "Paused" : "Recording")} · {recording.Elapsed:hh\\:mm\\:ss}{limit}{encoder}{liveWarning}";
+        var stage = recording.Stage switch
+        {
+            CpuRecordingStage.Rendering => "Rendering overlays",
+            CpuRecordingStage.Finalizing => "Finalizing recording",
+            _ when recording.IsPaused => "Paused",
+            _ => "Recording",
+        };
+        StatusText.Text = $"{stage} · {recording.Elapsed:hh\\:mm\\:ss}{limit}{encoder}{liveWarning}";
         StatusText.ToolTip = liveOverlayWarning;
     }
 

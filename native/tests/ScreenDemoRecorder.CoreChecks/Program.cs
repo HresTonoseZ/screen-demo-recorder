@@ -377,7 +377,16 @@ static void CheckRecordingOutput(string directory)
         output.Stream.WriteByte(42);
     }
     Require(File.ReadAllBytes(recovery).SequenceEqual(new byte[] { 42 }), "An incomplete recording was deleted on failure.");
-    Console.WriteLine("Recording output: template validation, collision protection, safe filenames, discard and recovery passed.");
+    using (var output = new RecordingOutput(settings, "External"))
+    {
+        var externalPath = output.PrepareForExternalWriter();
+        Require(!File.Exists(externalPath), "The output reservation remained locked for an external encoder.");
+        File.WriteAllBytes(externalPath, [24]);
+        var committed = output.Commit();
+        Require(File.ReadAllBytes(committed).SequenceEqual(new byte[] { 24 }),
+            "An externally encoded recording was not committed atomically.");
+    }
+    Console.WriteLine("Recording output: template validation, collision protection, external writers, safe filenames, discard and recovery passed.");
 }
 
 static void CheckOverlayPlacement()

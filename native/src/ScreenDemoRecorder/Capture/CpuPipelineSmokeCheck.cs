@@ -4,6 +4,7 @@ using System.Windows.Controls;
 using System.Windows.Interop;
 using System.Windows.Media;
 using ScreenDemoRecorder.Core.Models;
+using ScreenDemoRecorder.Core.Services;
 
 namespace ScreenDemoRecorder.Capture;
 
@@ -54,6 +55,7 @@ internal static class CpuPipelineSmokeCheck
         var finalPath = Path.Combine(directory, "cpu-offline-final.mp4");
         if (File.Exists(finalPath)) File.Delete(finalPath);
         await CpuRecordingRenderer.RenderAsync(ffmpeg, videoPath, finalPath, width, height, 25,
+            Mp4OutputPlan.Create(width, height, 0), QualityPreset.Balanced,
             new RecordingOverlays(null, null, null), new OverlaySettings(), []);
         Require(File.Exists(finalPath) && new FileInfo(finalPath).Length > 0,
             "The CPU OpenH264 renderer did not produce a final MP4.");
@@ -63,7 +65,9 @@ internal static class CpuPipelineSmokeCheck
 
         var captureResult = await CheckWgcCaptureAsync(ffmpeg, directory);
         await File.WriteAllTextAsync(Path.Combine(directory, "result.txt"),
-            $"PASS: GPU staging readback, CPU overlay blending, {frameCount} generated FFV1/OpenH264 frames and {captureResult.FrameCount} real WGC frames decoded successfully.\n{videoPath}\n{finalPath}\n{captureResult.Path}\n");
+            $"PASS: GPU staging readback, CPU overlay blending, {frameCount} generated FFV1/OpenH264 frames, " +
+            $"{captureResult.FrameCount} real WGC frames, and the normal CPU recording session with shared live/journal events decoded successfully.\n" +
+            $"{videoPath}\n{finalPath}\n{captureResult.Path}\n");
     }
 
     private static async Task<(string Path, int FrameCount)> CheckWgcCaptureAsync(string ffmpeg, string directory)
@@ -84,6 +88,7 @@ internal static class CpuPipelineSmokeCheck
             Title = "CPU capture verification target",
         };
         CpuIntermediateRecording? recording = null;
+        CpuRecordingSession? productRecording = null;
         try
         {
             var rendered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -126,10 +131,76 @@ internal static class CpuPipelineSmokeCheck
             var lastSample = pixels.Length - frameSize + sampleOffset;
             Require(pixels[lastSample] > 220 && pixels[lastSample + 1] < 30 && pixels[lastSample + 2] < 30,
                 "The final clean WGC frame did not preserve the blue source pixels.");
+
+            var profile = new RecorderProfile();
+            profile.Output.Directory = directory;
+            profile.Output.FilenameTemplate = "cpu-product-{counter}";
+            profile.Output.Mp4Width = 160;
+            profile.Capture.ShowCursor = false;
+            profile.Capture.HighlightClicks = true;
+            profile.Capture.MaximumDurationSeconds = 5;
+            profile.Overlays.Label.Width = 150;
+            profile.Overlays.Label.OffsetY = 8;
+            profile.Overlays.Label.BackgroundBlur = 4;
+            profile.Overlays.Keystrokes.Enabled = true;
+            profile.Overlays.Keystrokes.Anchor = OverlayAnchor.TopLeft;
+            profile.Overlays.Keystrokes.OffsetX = 8;
+            profile.Overlays.Keystrokes.OffsetY = 8;
+            profile.Overlays.Desktop.ShowKeystrokes = true;
+            profile.Overlays.Desktop.ShowMouseClicks = true;
+            var productCapture = CaptureTargetFactory.Create(new CaptureSettings
+            {
+                Source = CaptureSource.Window,
+                WindowTitle = window.Title,
+                WindowProcessName = window.ProcessName,
+                WindowClassName = window.ClassName,
+            }, [], window);
+            var overlays = RecordingOverlayPipeline.Create(profile, productCapture.Area.Width, productCapture.Area.Height);
+            var liveKeys = 0;
+            var liveClicks = 0;
+            productRecording = new CpuRecordingSession(productCapture.Item, productCapture.Area, profile, 20, overlays,
+                productCapture.MapScreenPoint, productCapture.Validate,
+                (_, _) => Interlocked.Increment(ref liveKeys),
+                (_, _, _) => Interlocked.Increment(ref liveClicks));
+            Require(await productRecording.Ready.WaitAsync(TimeSpan.FromSeconds(15)),
+                "The product CPU recording session did not become ready.");
+            productRecording.AddKeystrokeForChecks(0x4B, KeyModifiers.Control);
+            productRecording.AddMouseClickForChecks(new PixelPoint(productCapture.Area.Width / 2,
+                productCapture.Area.Height / 2), MouseClickButton.Left);
+            await Task.Delay(500);
+            productRecording.TogglePause();
+            var productPausedAt = productRecording.Elapsed;
+            await Task.Delay(200);
+            Require(productRecording.Elapsed == productPausedAt, "The product CPU session included paused time.");
+            productRecording.TogglePause();
+            await Task.Delay(250);
+            productRecording.Stop();
+            var productPath = await productRecording.Completion.WaitAsync(TimeSpan.FromSeconds(30));
+            Require(productPath is not null && File.Exists(productPath),
+                "The product CPU session did not commit its final MP4.");
+            Require(liveKeys == 1 && liveClicks == 1,
+                "The product CPU session did not fan input events to the live layer exactly once.");
+            var productPixels = await DecodeAsync(ffmpeg, productPath!,
+                Path.Combine(directory, "cpu-product-final.bgra"));
+            var productPlan = Mp4OutputPlan.Create(productCapture.Area.Width, productCapture.Area.Height, 160);
+            var productFrameSize = productPlan.Width * productPlan.Height * 4;
+            Require(productPixels.Length >= productFrameSize * 8 && productPixels.Length % productFrameSize == 0,
+                "The product CPU session produced invalid resized MP4 frames.");
+            var overlayPixels = 0;
+            for (var offset = 0; offset < productPixels.Length; offset += 4)
+                if (productPixels[offset + 1] > 20 || productPixels[offset + 2] > 20) overlayPixels++;
+            Require(overlayPixels > 500,
+                "The product CPU session did not render its offline overlays into the final MP4.");
             return (path, pixels.Length / frameSize);
         }
         finally
         {
+            productRecording?.Stop(discard: true);
+            if (productRecording is not null)
+            {
+                try { await productRecording.Completion.WaitAsync(TimeSpan.FromSeconds(30)); }
+                catch (Exception) when (productRecording.Completion.IsCompleted) { }
+            }
             recording?.Stop();
             if (recording is not null)
             {

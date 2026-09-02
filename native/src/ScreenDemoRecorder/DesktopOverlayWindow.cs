@@ -22,6 +22,7 @@ internal sealed class DesktopOverlayWindow : IDisposable
     private readonly KeystrokeTimeline? keystrokeTimeline;
     private readonly ClickTimeline? clickTimeline;
     private readonly KeystrokeFilter? keystrokeFilter;
+    private readonly Func<TimeSpan>? timelineNow;
     private readonly Stopwatch clock = Stopwatch.StartNew();
     private readonly Dispatcher dispatcher = Dispatcher.CurrentDispatcher;
     private readonly DispatcherTimer timer;
@@ -29,9 +30,11 @@ internal sealed class DesktopOverlayWindow : IDisposable
     private MouseClickCapture? mouse;
     private volatile bool disposed;
 
-    public DesktopOverlayWindow(PixelRect bounds, OverlaySettings overlays, CaptureSettings capture)
+    public DesktopOverlayWindow(PixelRect bounds, OverlaySettings overlays, CaptureSettings capture,
+        bool captureInput = true, Func<TimeSpan>? recordingTime = null)
     {
         screenBounds = bounds;
+        timelineNow = recordingTime;
         timer = new DispatcherTimer(DispatcherPriority.Render)
         {
             Interval = TimeSpan.FromMilliseconds(16),
@@ -56,7 +59,7 @@ internal sealed class DesktopOverlayWindow : IDisposable
                 keystrokeTimeline = new KeystrokeTimeline(overlays.Keystrokes);
                 keystrokeFilter = new KeystrokeFilter(overlays.Keystrokes, capture);
                 EnsureSurfaceCount(keystrokeSurfaces, 1, "Live keystroke overlay");
-                keyboard = new KeyboardCapture(OnKeyPressed);
+                if (captureInput) keyboard = new KeyboardCapture(OnKeyPressed);
             }
 
             if (overlays.Desktop.ShowMouseClicks)
@@ -64,10 +67,10 @@ internal sealed class DesktopOverlayWindow : IDisposable
                 clickRenderer = new ClickRenderer(overlays.Clicks);
                 clickTimeline = new ClickTimeline(overlays.Clicks);
                 EnsureSurfaceCount(clickSurfaces, 1, "Live mouse-click overlay");
-                mouse = new MouseClickCapture(OnMouseClicked);
+                if (captureInput) mouse = new MouseClickCapture(OnMouseClicked);
             }
 
-            if (keyboard is not null || mouse is not null) timer.Start();
+            if (keystrokeRenderer is not null || clickRenderer is not null) timer.Start();
         }
         catch
         {
@@ -96,6 +99,24 @@ internal sealed class DesktopOverlayWindow : IDisposable
         OnKeyPressed(virtualKey, modifiers, false);
 
     internal void AddMouseClickForChecks(int x, int y, MouseClickButton button) => OnMouseClicked(x, y, button);
+
+    internal void AddKeystroke(KeyChord chord, TimeSpan time)
+    {
+        if (disposed || keystrokeTimeline is null) return;
+        _ = dispatcher.BeginInvoke(() =>
+        {
+            if (!disposed) keystrokeTimeline.Add(chord, time);
+        });
+    }
+
+    internal void AddMouseClick(PixelPoint position, MouseClickButton button, TimeSpan time)
+    {
+        if (disposed || clickTimeline is null) return;
+        _ = dispatcher.BeginInvoke(() =>
+        {
+            if (!disposed) clickTimeline.Add(position, button, time);
+        });
+    }
 
     private OverlaySurfaceWindow CreateSurface(string title)
     {
@@ -126,7 +147,7 @@ internal sealed class DesktopOverlayWindow : IDisposable
 
     private void RenderDynamicOverlays(object? sender, EventArgs e)
     {
-        var now = clock.Elapsed;
+        var now = timelineNow?.Invoke() ?? clock.Elapsed;
         if (keystrokeRenderer is not null && keystrokeTimeline is not null)
         {
             var placements = keystrokeRenderer.Layout(keystrokeTimeline.VisibleAt(now), screenBounds.Width, screenBounds.Height);

@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Globalization;
 using System.Threading.Channels;
+using ScreenDemoRecorder.Core.Services;
 
 namespace ScreenDemoRecorder.Capture;
 
@@ -12,15 +13,19 @@ internal sealed class FfmpegMp4Encoder : IAsyncDisposable
     private readonly Task worker;
     private bool completed;
 
-    public FfmpegMp4Encoder(string executablePath, string outputPath, int width, int height,
-        double frameRate, int capacity = 3)
+    public FfmpegMp4Encoder(string executablePath, string outputPath, int inputWidth, int inputHeight,
+        Mp4OutputPlan outputPlan, double frameRate, int bitrate, int capacity = 3)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(executablePath);
         ArgumentException.ThrowIfNullOrWhiteSpace(outputPath);
         if (!File.Exists(executablePath)) throw new FileNotFoundException("The bundled FFmpeg executable is missing.", executablePath);
-        if (width < 2) throw new ArgumentOutOfRangeException(nameof(width));
-        if (height < 2) throw new ArgumentOutOfRangeException(nameof(height));
+        if (inputWidth < 2) throw new ArgumentOutOfRangeException(nameof(inputWidth));
+        if (inputHeight < 2) throw new ArgumentOutOfRangeException(nameof(inputHeight));
+        ArgumentNullException.ThrowIfNull(outputPlan);
+        if (outputPlan.CaptureWidth != inputWidth || outputPlan.CaptureHeight != inputHeight)
+            throw new ArgumentException("The MP4 output plan does not match the input geometry.", nameof(outputPlan));
         if (!double.IsFinite(frameRate) || frameRate is < 1 or > 120) throw new ArgumentOutOfRangeException(nameof(frameRate));
+        if (bitrate < 1) throw new ArgumentOutOfRangeException(nameof(bitrate));
         if (capacity < 1) throw new ArgumentOutOfRangeException(nameof(capacity));
         Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(outputPath))!);
         if (File.Exists(outputPath)) throw new IOException($"The final MP4 already exists: {outputPath}.");
@@ -31,7 +36,8 @@ internal sealed class FfmpegMp4Encoder : IAsyncDisposable
             SingleReader = true,
             SingleWriter = true,
         });
-        process = new Process { StartInfo = CreateStartInfo(executablePath, outputPath, width, height, frameRate) };
+        process = new Process { StartInfo = CreateStartInfo(executablePath, outputPath,
+            inputWidth, inputHeight, outputPlan, frameRate, bitrate) };
         if (!process.Start()) throw new InvalidOperationException("FFmpeg did not start the CPU H.264 encoder.");
         errors = process.StandardError.ReadToEndAsync();
         worker = WriteFramesAsync();
@@ -94,7 +100,7 @@ internal sealed class FfmpegMp4Encoder : IAsyncDisposable
     }
 
     internal static ProcessStartInfo CreateStartInfo(string executablePath, string outputPath,
-        int width, int height, double frameRate)
+        int inputWidth, int inputHeight, Mp4OutputPlan outputPlan, double frameRate, int bitrate)
     {
         var startInfo = new ProcessStartInfo
         {
@@ -108,9 +114,12 @@ internal sealed class FfmpegMp4Encoder : IAsyncDisposable
         string[] arguments =
         [
             "-hide_banner", "-nostdin", "-loglevel", "error", "-f", "rawvideo", "-pixel_format", "bgra",
-            "-video_size", $"{width}x{height}", "-framerate", frameRate.ToString("0.###", CultureInfo.InvariantCulture),
-            "-i", "pipe:0", "-an", "-vf", "pad=ceil(iw/2)*2:ceil(ih/2)*2,format=yuv420p",
-            "-c:v", "libopenh264", "-b:v", "8M", "-maxrate", "12M", "-bufsize", "16M",
+            "-video_size", $"{inputWidth}x{inputHeight}", "-framerate", frameRate.ToString("0.###", CultureInfo.InvariantCulture),
+            "-i", "pipe:0", "-an", "-vf", $"scale={outputPlan.ContentWidth}:{outputPlan.ContentHeight}:flags=lanczos," +
+                $"pad={outputPlan.Width}:{outputPlan.Height}:(ow-iw)/2:(oh-ih)/2,format=yuv420p",
+            "-c:v", "libopenh264", "-b:v", bitrate.ToString(CultureInfo.InvariantCulture),
+            "-maxrate", (bitrate * 3L / 2).ToString(CultureInfo.InvariantCulture),
+            "-bufsize", (bitrate * 2L).ToString(CultureInfo.InvariantCulture),
             "-movflags", "+faststart", "-f", "mp4", Path.GetFullPath(outputPath),
         ];
         foreach (var argument in arguments) startInfo.ArgumentList.Add(argument);

@@ -51,6 +51,14 @@ public sealed class RecordingOutput : IDisposable
         throw new IOException($"No available recording filename. The recording remains at {TemporaryPath}.");
     }
 
+    public string PrepareForExternalWriter()
+    {
+        if (committed) throw new InvalidOperationException("The recording output has already been committed.");
+        Stream.Dispose();
+        File.Delete(TemporaryPath);
+        return TemporaryPath;
+    }
+
     public void Discard()
     {
         Stream.Dispose();
