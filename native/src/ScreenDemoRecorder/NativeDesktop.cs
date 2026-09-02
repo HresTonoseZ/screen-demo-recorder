@@ -34,6 +34,7 @@ internal static class NativeDesktop
     {
         public nint Handle { get; set; }
         public PixelRect Bounds { get; set; }
+        public bool ExactBoundsRequired { get; set; }
         public bool DpiHandlerAttached { get; set; }
     }
 
@@ -158,7 +159,8 @@ internal static class NativeDesktop
     public static bool IsPerMonitorV2() =>
         AreDpiAwarenessContextsEqual(GetThreadDpiAwarenessContext(), new nint(-4));
 
-    public static void Place(Window window, PixelRect bounds, bool clickThrough, bool requireCaptureExclusion = true)
+    public static void Place(Window window, PixelRect bounds, bool clickThrough,
+        bool requireCaptureExclusion = true, bool requireExactBounds = true)
     {
         var hwnd = new WindowInteropHelper(window).EnsureHandle();
         if (requireCaptureExclusion) Exclude(window);
@@ -168,6 +170,7 @@ internal static class NativeDesktop
         var state = placements.GetOrCreateValue(window);
         state.Handle = hwnd;
         state.Bounds = bounds;
+        state.ExactBoundsRequired = requireExactBounds;
         if (!state.DpiHandlerAttached)
         {
             window.DpiChanged += (_, _) => ApplyPhysicalBounds(window, state);
@@ -181,7 +184,7 @@ internal static class NativeDesktop
         var bounds = state.Bounds;
         if (!SetWindowPos(state.Handle, new nint(-1), bounds.X, bounds.Y, bounds.Width, bounds.Height, 0x0010))
             throw new Win32Exception();
-        if (WindowBounds(window) != bounds)
+        if (state.ExactBoundsRequired && WindowBounds(window) != bounds)
             throw new InvalidOperationException("Windows did not apply the requested physical-pixel window bounds.");
     }
 

@@ -256,7 +256,8 @@ internal sealed class DesktopOverlayWindow : IDisposable
             if (!wasVisible) window.Show();
             if (!wasVisible || placedBounds != physicalBounds)
             {
-                NativeDesktop.Place(window, physicalBounds, true, requireCaptureExclusion: false);
+                NativeDesktop.Place(window, physicalBounds, true,
+                    requireCaptureExclusion: false, requireExactBounds: false);
                 placedBounds = physicalBounds;
             }
         }

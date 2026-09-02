@@ -639,8 +639,7 @@ public partial class MainWindow : Window
                 desktopOverlay = new DesktopOverlayWindow(bounds, profile.Overlays, profile.Capture);
 
             if (BoundaryCheckBox.IsChecked == true && WindowSource.IsChecked != true)
-                boundary = new RegionBoundary(bounds, recording is { IsStopped: false }
-                    ? profile.Selection.RecordingColor : profile.Selection.SelectionColor, profile.Selection.LineWidth);
+                boundary = new RegionBoundary(bounds, profile.Selection.SelectionColor, profile.Selection.LineWidth);
         }
         catch (Exception error)
         {

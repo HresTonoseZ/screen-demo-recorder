@@ -64,7 +64,7 @@
                             </Grid.ColumnDefinitions>
                             <StackPanel>
                                 <TextBlock x:Name="AreaSummaryText" Text="No region selected" FontWeight="SemiBold" Foreground="{DynamicResource TextBrush}" />
-                                <CheckBox x:Name="BoundaryCheckBox" Content="Show area boundary" Margin="0,6,0,0" Checked="BoundarySetting_Changed" Unchecked="BoundarySetting_Changed" />
+                                <CheckBox x:Name="BoundaryCheckBox" Content="Preview area boundary" Margin="0,6,0,0" ToolTip="Show the selected boundary between recordings" Checked="BoundarySetting_Changed" Unchecked="BoundarySetting_Changed" />
                             </StackPanel>
                             <Button x:Name="SelectRegionButton" Grid.Column="1" Content="Select" Click="SelectRegion_Click" />
                         </Grid>

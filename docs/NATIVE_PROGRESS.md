@@ -76,16 +76,16 @@ for the Python recorder. No Python source or working executable has been removed
 - Physical-pixel region geometry, a per-monitor DPI manifest, remembered regions,
   disconnected-display handling, and bounds checks after display changes. Shared
   screen-to-capture mapping covers negative virtual-desktop origins and regions on
-  monitors positioned left of or above the primary display. Service windows retain
-  exact physical bounds when WPF receives a DPI change.
-- Persistent topmost boundary that remains visible while the application is
-  running and the profile option is enabled, including while the controller is
-  hidden in the notification area and throughout recording. Four narrow solid-color,
+  monitors positioned left of or above the primary display. Capture selectors retain
+  exact physical bounds; nonessential preview surfaces use best-effort placement when
+  WPF or a display driver adjusts a Per-Monitor V2 window during a DPI transition.
+- Persistent topmost boundary preview that remains visible between recordings
+  while the application is running and the profile option is enabled. Four narrow solid-color,
   passive, no-activate, click-through windows draw the edges without allocating a
-  capture-sized layered surface. The edges use the configured recording color for
-  an active session and are placed outside the crop where desktop bounds allow it.
-  They do not depend on capture affinity. The native smoke and recording checks
-  verify visibility, passive styles, exact placement and persistence while dynamic
+  capture-sized layered surface. The edges use the configured selection color for
+  a selected region and are placed outside the crop where desktop bounds allow it.
+  They do not depend on capture affinity. The native smoke checks
+  verify visibility, passive styles, placement and persistence while dynamic
   overlays update.
 - Independent profile switches preview the label, pressed keys, and mouse-click
   rings over the selected capture target between recordings. Each visible label,
@@ -131,7 +131,8 @@ for the Python recorder. No Python source or working executable has been removed
 - The ten most recent MP4/GIF outputs are stored once, deduplicated without regard
   to path casing, and exposed through a compact Recent menu beside the save folder.
   The same menu opens the configured folder.
-- A recording-colored boundary and elapsed/limit display while recording.
+- An elapsed/limit display while recording. All application-owned overlay and
+  boundary windows close before capture begins.
 - Global recorder shortcuts using RegisterHotKey, separate from the optional
   pressed-key overlay: Ctrl+Shift+F9 starts or stops/saves, Ctrl+Shift+F8 pauses or
   resumes, and Ctrl+Shift+F10 requests discard with confirmation. Start/stop and

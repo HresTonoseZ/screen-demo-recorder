@@ -43,7 +43,6 @@ internal sealed class Mp4Recording
     private long nextFrameTicks;
     private readonly LabelRaster? label;
     private OverlayCompositor? compositor;
-    private DynamicOverlayCompositor? dynamicCompositor;
     private FrameScaler? scaler;
     private readonly KeystrokeRenderer? keyRenderer;
     private readonly ClickRenderer? clickRenderer;
@@ -143,10 +142,8 @@ internal sealed class Mp4Recording
             using var multithread = device.QueryInterface<ID3D11Multithread>();
             multithread.SetMultithreadProtected(true);
             frameCompletionQuery = device.CreateQuery(new QueryDescription(QueryType.Event, QueryFlags.None));
-            if (label is not null)
-                compositor = new OverlayCompositor(device, label, area.Width, area.Height);
-            if (keyRenderer is not null || clickRenderer is not null)
-                dynamicCompositor = new DynamicOverlayCompositor(device, keyRenderer, clickRenderer, area.Width, area.Height);
+            if (label is not null || keyRenderer is not null || clickRenderer is not null)
+                compositor = new OverlayCompositor(device, label, keyRenderer, clickRenderer, area.Width, area.Height);
             if (outputPlan.IsResized) scaler = new FrameScaler(device);
             using var captureDevice = GraphicsInterop.Wrap(device);
             using var pool = Direct3D11CaptureFramePool.CreateFreeThreaded(captureDevice,
@@ -268,7 +265,7 @@ internal sealed class Mp4Recording
             keyTimeline.Clear();
             clickTimeline.Clear();
             lock (sync) { finished = true; latest?.Dispose(); latest = null; abort.Dispose(); }
-            scaler?.Dispose(); dynamicCompositor?.Dispose(); compositor?.Dispose(); frameCompletionQuery?.Dispose(); context?.Dispose(); device?.Dispose(); output?.Dispose();
+            scaler?.Dispose(); compositor?.Dispose(); frameCompletionQuery?.Dispose(); context?.Dispose(); device?.Dispose(); output?.Dispose();
         }
     }
 
@@ -369,6 +366,8 @@ internal sealed class Mp4Recording
             context.ClearRenderTargetView(target, new Color4(0, 0, 0, 1));
         }
         context.CopySubresourceRegion(texture, 0, 0, 0, 0, input, 0, new Box(area.X, area.Y, 0, area.Right, area.Bottom, 1));
+        if (compositor is not null)
+            WaitForFrameCommands();
         if (keyboard?.Failure is { } keyboardError) throw new InvalidOperationException("Pressed-key capture failed.", keyboardError);
         if (mouse?.Failure is { } mouseError) throw new InvalidOperationException("Mouse-click capture failed.", mouseError);
         while (pendingKeys.Reader.TryPeek(out var pending) && pending.Time <= time)
@@ -379,8 +378,7 @@ internal sealed class Mp4Recording
         {
             if (pendingClicks.Reader.TryRead(out var click)) clickTimeline.Add(click.Position, click.Button, click.Time);
         }
-        compositor?.Draw(texture);
-        dynamicCompositor?.Draw(texture, keyTimeline.VisibleAt(time), clickTimeline.VisibleAt(time));
+        compositor?.Draw(texture, keyTimeline.VisibleAt(time), clickTimeline.VisibleAt(time));
         if (!outputPlan.IsResized)
         {
             WaitForFrameCommands();

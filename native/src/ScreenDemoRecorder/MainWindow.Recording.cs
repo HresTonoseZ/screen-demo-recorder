@@ -81,13 +81,9 @@ public partial class MainWindow
                 _ = new GifExportPlan(area.Width, area.Height, TimeSpan.FromSeconds(1), snapshot.Capture, snapshot.Output);
             RecordButton.Content = "Starting…";
             StatusText.Text = "Preparing screen capture and the H.264 encoder…";
-            var capturesDesktopWindows = snapshot.Capture.Source != CaptureSource.Window;
             var overlays = RecordingOverlayPipeline.Create(snapshot, area.Width, area.Height);
-            var hasLiveBounds = TryGetDesktopOverlayBounds(out var liveBounds);
             boundary?.Dispose(); boundary = null;
             desktopOverlay?.Dispose(); desktopOverlay = null;
-            if (capturesDesktopWindows && snapshot.Selection.KeepBoundaryVisible && hasLiveBounds)
-                boundary = new RegionBoundary(liveBounds, snapshot.Selection.RecordingColor, snapshot.Selection.LineWidth);
             NativeDesktop.FlushComposition();
             recording = new Mp4Recording(target.Item, area, snapshot,
                 snapshot.Capture.AutomaticFps ? 30 : snapshot.Capture.RecordingFps,
