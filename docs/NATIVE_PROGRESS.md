@@ -87,13 +87,12 @@ for the Python recorder. No Python source or working executable has been removed
   They do not depend on capture affinity. The native smoke and recording checks
   verify visibility, passive styles, exact placement and persistence while dynamic
   overlays update.
-- Independent profile switches show the label, pressed keys, and mouse-click rings
-  live over the selected capture target. The live overlay uses the same renderers,
-  placement, timing, and global input hooks as the recording overlays. Each visible
-  label or keycap and each click ring owns only a small topmost, passive,
-  click-through surface. No transparent window spans the capture target, and these
-  surfaces do not use capture affinity. Monitor and region capture records the live
-  surfaces directly; individual-window capture composes the same overlays on the GPU.
+- Independent profile switches preview the label, pressed keys, and mouse-click
+  rings over the selected capture target between recordings. Each visible label,
+  keycap, or click ring owns only a small topmost, passive, click-through surface.
+  These preview surfaces close before capture starts and return after it finishes.
+  Every capture source composes enabled recording overlays directly on the GPU, so
+  desktop-window updates cannot introduce missing, partial, or black video frames.
 - Region, display and individual-window recording through Windows.Graphics.Capture, GPU cropping
   with Direct3D 11, and H.264 MP4 encoding through Windows MediaTranscoder. An event-query
   completion barrier ensures that GPU crop, overlay and resize commands finish before each

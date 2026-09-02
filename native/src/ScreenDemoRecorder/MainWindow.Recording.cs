@@ -5,7 +5,6 @@ using System.Windows.Threading;
 using ScreenDemoRecorder.Capture;
 using ScreenDemoRecorder.Core.Services;
 using ScreenDemoRecorder.Core.Models;
-using ScreenDemoRecorder.Overlays;
 
 namespace ScreenDemoRecorder;
 
@@ -83,31 +82,16 @@ public partial class MainWindow
             RecordButton.Content = "Starting…";
             StatusText.Text = "Preparing screen capture and the H.264 encoder…";
             var capturesDesktopWindows = snapshot.Capture.Source != CaptureSource.Window;
-            var liveLabel = capturesDesktopWindows && snapshot.Overlays.Desktop.ShowLabel && snapshot.Overlays.Label.Enabled;
-            var liveKeys = capturesDesktopWindows && snapshot.Overlays.Desktop.ShowKeystrokes && snapshot.Overlays.Keystrokes.Enabled;
-            var liveClicks = capturesDesktopWindows && snapshot.Overlays.Desktop.ShowMouseClicks && snapshot.Capture.HighlightClicks;
-            var label = liveLabel ? null : LabelRenderer.Render(snapshot.Overlays.Label, area.Width, area.Height);
-            var keys = snapshot.Overlays.Keystrokes.Enabled && !liveKeys ? new KeystrokeRenderer(snapshot.Overlays.Keystrokes) : null;
-            var clicks = snapshot.Capture.HighlightClicks && !liveClicks ? new ClickRenderer(snapshot.Overlays.Clicks) : null;
+            var overlays = RecordingOverlayPipeline.Create(snapshot, area.Width, area.Height);
             var hasLiveBounds = TryGetDesktopOverlayBounds(out var liveBounds);
             boundary?.Dispose(); boundary = null;
             desktopOverlay?.Dispose(); desktopOverlay = null;
-            if (capturesDesktopWindows)
-            {
-                // Monitor and region recordings capture the small live surfaces
-                // directly. Never apply capture-affinity or draw them twice.
-                snapshot.Overlays.Desktop.ShowLabel = liveLabel;
-                snapshot.Overlays.Desktop.ShowKeystrokes = liveKeys;
-                snapshot.Overlays.Desktop.ShowMouseClicks = liveClicks;
-            }
-            if ((snapshot.Overlays.Desktop.ShowLabel || snapshot.Overlays.Desktop.ShowKeystrokes || snapshot.Overlays.Desktop.ShowMouseClicks) &&
-                hasLiveBounds)
-                desktopOverlay = new DesktopOverlayWindow(liveBounds, snapshot.Overlays, snapshot.Capture);
             if (capturesDesktopWindows && snapshot.Selection.KeepBoundaryVisible && hasLiveBounds)
                 boundary = new RegionBoundary(liveBounds, snapshot.Selection.RecordingColor, snapshot.Selection.LineWidth);
             NativeDesktop.FlushComposition();
             recording = new Mp4Recording(target.Item, area, snapshot,
-                snapshot.Capture.AutomaticFps ? 30 : snapshot.Capture.RecordingFps, label, keys, clicks,
+                snapshot.Capture.AutomaticFps ? 30 : snapshot.Capture.RecordingFps,
+                overlays.Label, overlays.Keystrokes, overlays.Clicks,
                 screenPointMapper: target.MapScreenPoint,
                 sourceValidation: target.Validate);
             var startupTimeout = Task.Delay(TimeSpan.FromSeconds(45));

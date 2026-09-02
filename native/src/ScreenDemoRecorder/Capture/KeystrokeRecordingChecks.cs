@@ -45,9 +45,15 @@ internal static class KeystrokeRecordingChecks
             FadeDurationMilliseconds = 400,
         };
         profile.Overlays.Clicks = new() { DurationMilliseconds = 1000 };
-        var renderer = new KeystrokeRenderer(profile.Overlays.Keystrokes);
-        var clickRenderer = new ClickRenderer(profile.Overlays.Clicks);
-        var label = LabelRenderer.Render(profile.Overlays.Label, crop.Width, crop.Height);
+        profile.Overlays.Desktop.ShowLabel = true;
+        profile.Overlays.Desktop.ShowKeystrokes = true;
+        profile.Overlays.Desktop.ShowMouseClicks = true;
+        var overlays = RecordingOverlayPipeline.Create(profile, crop.Width, crop.Height);
+        Require(overlays is { Label: not null, Keystrokes: not null, Clicks: not null },
+            "Desktop preview settings suppressed GPU recording overlays.");
+        var renderer = overlays.Keystrokes!;
+        var clickRenderer = overlays.Clicks!;
+        var label = overlays.Label;
         var timeline = new KeystrokeTimeline(profile.Overlays.Keystrokes);
         var clickTimeline = new ClickTimeline(profile.Overlays.Clicks);
         var recording = new Mp4Recording(item, crop, profile, 30, label, renderer, clickRenderer,
@@ -77,7 +83,10 @@ internal static class KeystrokeRecordingChecks
             Require(path is not null, "Keyboard overlays did not produce an MP4.");
             var composition = new MediaComposition();
             composition.Clips.Add(await MediaClip.CreateFromFileAsync(await StorageFile.GetFileFromPathAsync(path!)));
-            foreach (var (milliseconds, name) in new[] { (400, "visible"), (800, "fading"), (1300, "expired") })
+            var checkpoints = Enumerable.Range(0, 12)
+                .Select(index => (Milliseconds: 150 + index * 30, Name: $"stable-{index:00}"))
+                .Concat(new[] { (Milliseconds: 800, Name: "fading"), (Milliseconds: 1300, Name: "expired") });
+            foreach (var (milliseconds, name) in checkpoints)
             {
                 var time = first + TimeSpan.FromMilliseconds(milliseconds);
                 var preview = renderer.RenderPreview(timeline.VisibleAt(time), crop.Width, crop.Height);
@@ -91,6 +100,11 @@ internal static class KeystrokeRecordingChecks
                 var actualPixels = LabelRenderChecks.Pixels(actual);
                 var difference = expectedPixels.Zip(actualPixels, (a, b) => Math.Abs(a - b)).Average();
                 Require(difference < 6, $"Keyboard/click {name} frame differs from preview: {difference:F2}.");
+                if (name == "stable-08")
+                {
+                    LabelRenderChecks.Save(expected, Path.Combine(directory, "keys-visible-expected.png"));
+                    LabelRenderChecks.Save(actual, Path.Combine(directory, "keys-visible-encoded.png"));
+                }
             }
             return path!;
         }

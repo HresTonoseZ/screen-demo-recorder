@@ -8,9 +8,9 @@ Windows 11.
 A staged C#/.NET 10 rewrite is also available. The native preview records a
 display, region, or individual window to MP4 and exports GIF with labels and
 optional pressed-key and mouse-click overlays. It can keep the selected area
-boundary visible and show the label, pressed keys, and click highlights live on
-the desktop without intercepting input. It includes configurable global shortcuts,
-pause/resume, countdown, MP4/GIF resolution presets, automatic encoder fallback,
+boundary visible and preview the label, pressed keys, and click highlights on
+the desktop between recordings without intercepting input. It includes
+configurable global shortcuts, pause/resume, countdown, MP4/GIF resolution presets, automatic encoder fallback,
 export progress/cancellation, safe saving, profile transfer, recent recordings,
 themes and notification-area behavior. The feature list below describes the Python
 version; see [native progress](docs/NATIVE_PROGRESS.md) for the current scope.
