@@ -139,6 +139,14 @@ the source instead of corrected separately by each consumer.
   - ScreenToGif: <https://github.com/NickeManarin/ScreenToGif> (MS-PL; reference
     only unless its file-level license obligations are reviewed first)
 
+## Current implementation status
+
+- Session manifests, the recoverable JSONL journal, and the pause-aware clock are implemented.
+- Clean WGC staging readback and the bundled CPU FFV1 intermediate encoder are implemented and tested with real frames.
+- Capture-excluded live boundary, label, keystroke, and click windows are implemented and covered by WGC pixel probes.
+- The offline path now decodes FFV1 to BGRA, composites existing label/key/click rasters with a managed premultiplied-alpha blender, applies bounded separable label blur, and creates H.264 MP4 with the LGPL OpenH264 CPU encoder.
+- Product integration, render progress/recovery UI, removal of the legacy GPU recording compositor, and the cross-computer endurance matrix remain pending.
+
 ## Delivery phases
 
 ### Phase 1: Session model and event ownership

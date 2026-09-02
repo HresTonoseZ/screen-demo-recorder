@@ -13,10 +13,11 @@ internal static class CpuPipelineSmokeCheck
     {
         Directory.CreateDirectory(directory);
         CpuFrameReadbackChecks.Run();
+        CpuOverlayCompositorChecks.Run();
         var ffmpeg = FfmpegRuntime.RequireExecutable();
         var videoPath = Path.Combine(directory, "cpu-lossless-check.mkv");
-        const int width = 8;
-        const int height = 6;
+        const int width = 64;
+        const int height = 48;
         const int frameCount = 5;
         if (File.Exists(videoPath)) File.Delete(videoPath);
         await using (var encoder = new FfmpegLosslessEncoder(ffmpeg, videoPath, width, height, 25))
@@ -50,9 +51,19 @@ internal static class CpuPipelineSmokeCheck
                     "FFV1 did not preserve the CPU BGRA pixels exactly.");
         }
 
+        var finalPath = Path.Combine(directory, "cpu-offline-final.mp4");
+        if (File.Exists(finalPath)) File.Delete(finalPath);
+        await CpuRecordingRenderer.RenderAsync(ffmpeg, videoPath, finalPath, width, height, 25,
+            new RecordingOverlays(null, null, null), new OverlaySettings(), []);
+        Require(File.Exists(finalPath) && new FileInfo(finalPath).Length > 0,
+            "The CPU OpenH264 renderer did not produce a final MP4.");
+        var finalPixels = await DecodeAsync(ffmpeg, finalPath, Path.Combine(directory, "cpu-offline-final.bgra"));
+        Require(finalPixels.Length == frameSize * frameCount,
+            "The final CPU-rendered MP4 changed the frame count or geometry.");
+
         var captureResult = await CheckWgcCaptureAsync(ffmpeg, directory);
         await File.WriteAllTextAsync(Path.Combine(directory, "result.txt"),
-            $"PASS: GPU staging readback, {frameCount} generated FFV1 frames and {captureResult.FrameCount} real WGC frames decoded byte-for-byte.\n{videoPath}\n{captureResult.Path}\n");
+            $"PASS: GPU staging readback, CPU overlay blending, {frameCount} generated FFV1/OpenH264 frames and {captureResult.FrameCount} real WGC frames decoded successfully.\n{videoPath}\n{finalPath}\n{captureResult.Path}\n");
     }
 
     private static async Task<(string Path, int FrameCount)> CheckWgcCaptureAsync(string ffmpeg, string directory)
@@ -141,7 +152,7 @@ internal static class CpuPipelineSmokeCheck
             CreateNoWindow = true,
         };
         string[] arguments = ["-hide_banner", "-nostdin", "-loglevel", "error", "-i", videoPath,
-            "-f", "rawvideo", "-pixel_format", "bgra", decodedPath];
+            "-f", "rawvideo", "-pix_fmt", "bgra", decodedPath];
         foreach (var argument in arguments) decode.ArgumentList.Add(argument);
         using var process = Process.Start(decode) ?? throw new InvalidOperationException("FFmpeg decoder did not start.");
         var diagnostics = process.StandardError.ReadToEndAsync();
