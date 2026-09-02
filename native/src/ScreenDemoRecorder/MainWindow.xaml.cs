@@ -20,6 +20,7 @@ public partial class MainWindow : Window
     private bool profileOperation;
     private RegionBoundary? boundary;
     private DesktopOverlayWindow? desktopOverlay;
+    private string? liveOverlayWarning;
     private IReadOnlyList<DisplayInfo> displays = [];
     private DesktopWindowInfo? selectedWindow;
     internal bool PreviewMode { get; }
@@ -627,9 +628,10 @@ public partial class MainWindow : Window
 
     private void RefreshBoundary()
     {
-        if (recordingBusy) return;
+        if (recordingBusy && recording is null) return;
         boundary?.Dispose(); boundary = null;
         desktopOverlay?.Dispose(); desktopOverlay = null;
+        liveOverlayWarning = null;
         if (PreviewMode || !TryGetDesktopOverlayBounds(out var bounds)) return;
 
         try
@@ -645,7 +647,8 @@ public partial class MainWindow : Window
         {
             boundary?.Dispose(); boundary = null;
             desktopOverlay?.Dispose(); desktopOverlay = null;
-            StatusText.Text = $"Cannot show desktop overlay: {error.Message}";
+            liveOverlayWarning = $"Live overlay disabled because Windows could not verify capture exclusion: {error.Message}";
+            StatusText.Text = liveOverlayWarning;
         }
     }
 

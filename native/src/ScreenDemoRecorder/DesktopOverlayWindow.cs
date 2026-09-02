@@ -55,6 +55,7 @@ internal sealed class DesktopOverlayWindow : IDisposable
                 keystrokeRenderer = new KeystrokeRenderer(overlays.Keystrokes);
                 keystrokeTimeline = new KeystrokeTimeline(overlays.Keystrokes);
                 keystrokeFilter = new KeystrokeFilter(overlays.Keystrokes, capture);
+                EnsureSurfaceCount(keystrokeSurfaces, 1, "Live keystroke overlay");
                 keyboard = new KeyboardCapture(OnKeyPressed);
             }
 
@@ -62,6 +63,7 @@ internal sealed class DesktopOverlayWindow : IDisposable
             {
                 clickRenderer = new ClickRenderer(overlays.Clicks);
                 clickTimeline = new ClickTimeline(overlays.Clicks);
+                EnsureSurfaceCount(clickSurfaces, 1, "Live mouse-click overlay");
                 mouse = new MouseClickCapture(OnMouseClicked);
             }
 
@@ -74,7 +76,8 @@ internal sealed class DesktopOverlayWindow : IDisposable
         }
     }
 
-    public bool IsExcludedFromCapture => surfaces.Any(surface => surface.IsExcludedFromCapture);
+    public bool IsExcludedFromCapture => surfaces.Any(surface => surface.IsVisible) &&
+        surfaces.Where(surface => surface.IsVisible).All(surface => surface.IsExcludedFromCapture);
 
     internal bool IsVisible => surfaces.Any(surface => surface.IsVisible);
 
@@ -217,6 +220,9 @@ internal sealed class DesktopOverlayWindow : IDisposable
                 Top = -32000,
                 Content = new Viewbox { Stretch = Stretch.Fill, Child = canvas, IsHitTestVisible = false },
             };
+            window.Show();
+            NativeDesktop.Exclude(window);
+            window.Hide();
         }
 
         public bool IsExcludedFromCapture => window.IsVisible && NativeDesktop.IsExcluded(window);
@@ -257,7 +263,7 @@ internal sealed class DesktopOverlayWindow : IDisposable
             if (!wasVisible || placedBounds != physicalBounds)
             {
                 NativeDesktop.Place(window, physicalBounds, true,
-                    requireCaptureExclusion: false, requireExactBounds: false);
+                    requireCaptureExclusion: true, requireExactBounds: false);
                 placedBounds = physicalBounds;
             }
         }

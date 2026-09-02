@@ -254,8 +254,8 @@ public partial class App : Application
                 var display = NativeDesktop.Displays().First();
                 using (var boundary = new RegionBoundary(display, new PixelRect(100, 100, 640, 360), "#7B61FFFF", 2))
                 {
-                    if (!boundary.IsVisible || !boundary.HasExpectedBounds || !boundary.IsPassive || boundary.IsExcluded)
-                        throw new InvalidOperationException("The boundary is not visible, passive, correctly positioned or capture-affinity free.");
+                    if (!boundary.IsVisible || !boundary.HasExpectedBounds || !boundary.IsPassive || !boundary.IsExcluded)
+                        throw new InvalidOperationException("The boundary is not visible, passive, correctly positioned or excluded from capture.");
                 }
                 var liveProfile = store.GetActiveProfile();
                 liveProfile.Overlays.Desktop.ShowLabel = true;
@@ -264,8 +264,10 @@ public partial class App : Application
                 using (var liveOverlay = new DesktopOverlayWindow(liveBounds, liveProfile.Overlays, liveProfile.Capture))
                 {
                     if (!liveOverlay.IsVisible || !liveOverlay.HasExpectedBounds || !liveOverlay.IsPassive ||
-                        liveOverlay.IsExcludedFromCapture || liveOverlay.HasCaptureSizedSurface || liveOverlay.VisibleSurfaceCount == 0)
-                        throw new InvalidOperationException("The live desktop overlay is not visible, passive, correctly positioned, capture-affinity free or split into small surfaces.");
+                        !liveOverlay.IsExcludedFromCapture || liveOverlay.HasCaptureSizedSurface || liveOverlay.VisibleSurfaceCount == 0)
+                        throw new InvalidOperationException($"The live desktop overlay failed verification: visible={liveOverlay.IsVisible}, " +
+                            $"bounds={liveOverlay.HasExpectedBounds}, passive={liveOverlay.IsPassive}, excluded={liveOverlay.IsExcludedFromCapture}, " +
+                            $"captureSized={liveOverlay.HasCaptureSizedSurface}, visibleSurfaces={liveOverlay.VisibleSurfaceCount}.");
                 }
                 var selectorProfile = store.GetActiveProfile();
                 selectorProfile.Selection.HandleShape = SelectionHandleShape.Square;

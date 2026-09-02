@@ -175,7 +175,9 @@ public partial class MainWindow
         CancelButton.IsEnabled = !finishing;
         var limit = profile.Capture.MaximumDurationSeconds > 0 ? $" / {TimeSpan.FromSeconds(profile.Capture.MaximumDurationSeconds):hh\\:mm\\:ss}" : "";
         var encoder = recording.UsesSoftwareEncoder ? " · software encoder" : "";
-        StatusText.Text = $"{(finishing ? "Finishing" : recording.IsPaused ? "Paused" : "Recording")} · {recording.Elapsed:hh\\:mm\\:ss}{limit}{encoder}";
+        var liveWarning = liveOverlayWarning is null ? "" : " · live overlay disabled";
+        StatusText.Text = $"{(finishing ? "Finishing" : recording.IsPaused ? "Paused" : "Recording")} · {recording.Elapsed:hh\\:mm\\:ss}{limit}{encoder}{liveWarning}";
+        StatusText.ToolTip = liveOverlayWarning;
     }
 
     private void PauseButton_Click(object sender, RoutedEventArgs e) => ExecuteRecordingCommand(RecorderCommand.TogglePause);

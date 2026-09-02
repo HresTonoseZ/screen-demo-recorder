@@ -35,10 +35,9 @@ internal static class LiveOverlayRecordingChecks
 
         using var boundary = new RegionBoundary(target.Bounds, "#EE4B5FFF", 3);
         using var overlay = new DesktopOverlayWindow(target.Bounds, profile.Overlays, profile.Capture);
-        Require(!overlay.IsExcludedFromCapture, "The live overlay unexpectedly uses capture-affinity.");
         Require(!overlay.HasCaptureSizedSurface, "The live overlay created a capture-sized layered surface.");
-        Require(boundary.IsVisible && boundary.IsPassive && !boundary.IsExcluded,
-            "The recording boundary is not visible, passive or capture-affinity free.");
+        Require(boundary.IsVisible && boundary.IsPassive && boundary.IsExcluded,
+            "The recording boundary is not visible, passive or excluded from capture.");
         NativeDesktop.FlushComposition();
         var recording = new Mp4Recording(item, crop, profile, 60, null,
             captureKeyboardInput: false, captureMouseInput: false);
@@ -56,8 +55,8 @@ internal static class LiveOverlayRecordingChecks
             }
             Require(boundary.IsVisible && boundary.HasExpectedBounds,
                 "The recording boundary disappeared or moved while overlays were updating.");
-            Require(overlay.VisibleSurfaceCount > 0 && !overlay.HasCaptureSizedSurface,
-                "Dynamic live overlays were not split into small visible surfaces.");
+            Require(overlay.VisibleSurfaceCount > 0 && overlay.IsExcludedFromCapture && !overlay.HasCaptureSizedSurface,
+                "Dynamic live overlays were not visible, capture-excluded and split into small surfaces.");
             var mp4Path = await recording.Completion.WaitAsync(TimeSpan.FromSeconds(20));
             Require(mp4Path is not null, "The live-overlay monitor recording was not saved.");
             var gifPath = await GifExport.RunAsync(mp4Path!, new PixelRect(0, 0, crop.Width, crop.Height), profile);

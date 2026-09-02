@@ -159,6 +159,7 @@ internal static class RecordingSmokeCheck
             var keysPath = await KeystrokeRecordingChecks.RunAsync(item, crop, profile, directory);
             await GifExportChecks.RunAsync(path!, keysPath, crop, directory);
             await DynamicOverlayFlickerChecks.RunAsync(item, crop, directory);
+            await LiveOverlayRecordingChecks.RunAsync(display, targetWindow, directory);
 
             profile.Output.FilenameTemplate = "scaled-check-{counter}";
             profile.Output.Mp4Width = 160;
@@ -194,7 +195,7 @@ internal static class RecordingSmokeCheck
             Require(resizeFailure?.Message.Contains("changed size", StringComparison.OrdinalIgnoreCase) == true,
                 "Resizing a captured window did not stop recording with a clear error.");
             await File.WriteAllTextAsync(Path.Combine(directory, "result.txt"),
-                $"PASS: Per-Monitor V2 recording context, WPF/Win32 DPI, physical dimensions for every connected monitor, full-window capture target and edge click mapping, window resize safety, Windows Graphics Capture, GPU crop and per-frame completion barrier, encoder-ready timeline start, label background blur and high-quality output scaling, H.264 MP4, decoded frames, pause/resume, stop/save, paused/immediate cancellation, duration limit, fractional FPS, label composition, pure-GPU dynamic overlays, capture-affinity-free desktop previews, preview-independent GPU recording overlays, four-way dynamic-overlay flicker coverage, keyboard/mouse hook start/early-stop/cleanup, keystroke and mouse-click privacy/pause/fade composition and preview parity.\nVideo: {video.Width}x{video.Height}, {video.Duration.TotalSeconds:F3}s; active clock: {elapsed.TotalSeconds:F3}s.\nScaled video: {scaled.Width}x{scaled.Height}.\nLabel mean channel error: {difference:F2}.\n{path}\n{labelledPath}\n{scaledPath}\n");
+                $"PASS: Per-Monitor V2 recording context, WPF/Win32 DPI, physical dimensions for every connected monitor, full-window capture target and edge click mapping, window resize safety, Windows Graphics Capture, GPU crop and per-frame completion barrier, encoder-ready timeline start, label background blur and high-quality output scaling, H.264 MP4, decoded frames, pause/resume, stop/save, paused/immediate cancellation, duration limit, fractional FPS, label composition, pure-GPU dynamic overlays, capture-excluded live desktop overlays and boundary, preview-independent GPU recording overlays, four-way dynamic-overlay flicker coverage, keyboard/mouse hook start/early-stop/cleanup, keystroke and mouse-click privacy/pause/fade composition and preview parity.\nVideo: {video.Width}x{video.Height}, {video.Duration.TotalSeconds:F3}s; active clock: {elapsed.TotalSeconds:F3}s.\nScaled video: {scaled.Width}x{scaled.Height}.\nLabel mean channel error: {difference:F2}.\n{path}\n{labelledPath}\n{scaledPath}\n");
         }
         finally
         {

@@ -49,7 +49,7 @@ internal sealed class RegionBoundary : IDisposable
                 if (show) window.Show();
                 else _ = new WindowInteropHelper(window).EnsureHandle();
                 NativeDesktop.Place(window, edgeBounds, true,
-                    requireCaptureExclusion: false, requireExactBounds: false);
+                    requireCaptureExclusion: true, requireExactBounds: false);
             }
         }
         catch
@@ -59,7 +59,7 @@ internal sealed class RegionBoundary : IDisposable
         }
     }
 
-    public bool IsExcluded => edges.Any(edge => NativeDesktop.IsExcluded(edge.Window));
+    public bool IsExcluded => edges.Count > 0 && edges.All(edge => NativeDesktop.IsExcluded(edge.Window));
 
     public bool IsVisible => edges.Count > 0 && edges.All(edge => edge.Window.IsVisible);
 
