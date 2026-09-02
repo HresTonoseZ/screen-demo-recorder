@@ -3,6 +3,9 @@
 The native preview is a staged C#/.NET 10 WPF rewrite. It is not yet a replacement
 for the Python recorder. No Python source or working executable has been removed.
 
+The planned replacement for live GPU recording composition is documented in
+[CPU_CAPTURE_ROADMAP.md](CPU_CAPTURE_ROADMAP.md).
+
 ## Implemented
 
 - Compact recorder settings window with profile selection, duplication, renaming,
