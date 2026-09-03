@@ -213,8 +213,10 @@ connected display against Windows Graphics Capture and verifies synthetic
 100–200% viewport mappings, including monitors with negative desktop origins.
 
 For a one-click self-contained build, double-click `build-native.bat`. It checks
-for the required .NET SDK and offers to install a private current-user copy when
-needed. Before publishing, it stops build servers, closes only a previous preview
+whether `origin/main` has a newer commit and asks before applying a safe
+fast-forward update; declining or an unavailable network builds the local copy.
+It then checks for the required .NET SDK and offers to install a private current-user
+copy when needed. Before publishing, it stops build servers, closes only a previous preview
 running from `dist\native-preview`, removes that old output folder completely,
 and creates a clean replacement. Source files, profiles, and recordings are not
 deleted.

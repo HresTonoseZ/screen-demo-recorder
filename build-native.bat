@@ -6,6 +6,17 @@ set "SDK_VERSION=10.0.400"
 set "APP_TOOL_DIR=%LOCALAPPDATA%\ScreenDemoRecorder"
 set "APP_DOTNET_DIR=%APP_TOOL_DIR%\dotnet"
 set "DOTNET_EXE="
+set "REPO_DIR=%~dp0."
+
+:check_update
+if /i "%~1"=="--skip-update-check" goto :after_update_check
+call :check_repository_update
+set "UPDATE_RESULT=!ERRORLEVEL!"
+if "!UPDATE_RESULT!"=="100" exit /b 0
+if "!UPDATE_RESULT!"=="101" exit /b 1
+
+:after_update_check
+if defined SDR_UPDATE_CHECK_ONLY exit /b 0
 
 echo Checking build requirements...
 where powershell.exe >nul 2>&1
@@ -96,6 +107,84 @@ exit /b 0
 if not exist "%~1" exit /b 0
 "%~1" build-server shutdown >nul 2>&1
 exit /b 0
+
+:check_repository_update
+where git.exe >nul 2>&1
+if errorlevel 1 (
+    echo Git was not found. Continuing with the local source.
+    exit /b 0
+)
+git -C "%REPO_DIR%" rev-parse --is-inside-work-tree >nul 2>&1
+if errorlevel 1 (
+    echo This folder is not a Git working tree. Continuing with the local source.
+    exit /b 0
+)
+git -C "%REPO_DIR%" remote get-url origin >nul 2>&1
+if errorlevel 1 (
+    echo The origin remote is not configured. Continuing with the local source.
+    exit /b 0
+)
+
+echo Checking for repository updates...
+git -C "%REPO_DIR%" fetch --quiet origin +refs/heads/main:refs/remotes/origin/main
+if errorlevel 1 (
+    echo The update check could not reach origin. Continuing with the local source.
+    exit /b 0
+)
+
+for /f "delims=" %%H in ('git -C "%REPO_DIR%" rev-parse HEAD') do set "LOCAL_COMMIT=%%H"
+for /f "delims=" %%H in ('git -C "%REPO_DIR%" rev-parse origin/main') do set "REMOTE_COMMIT=%%H"
+for /f "delims=" %%H in ('git -C "%REPO_DIR%" rev-parse --short^=8 HEAD') do set "LOCAL_COMMIT_SHORT=%%H"
+for /f "delims=" %%H in ('git -C "%REPO_DIR%" rev-parse --short^=8 origin/main') do set "REMOTE_COMMIT_SHORT=%%H"
+echo Local:  !LOCAL_COMMIT_SHORT!
+echo Server: !REMOTE_COMMIT_SHORT!
+if "!LOCAL_COMMIT!"=="!REMOTE_COMMIT!" (
+    echo The local repository is up to date.
+    exit /b 0
+)
+
+git -C "%REPO_DIR%" merge-base --is-ancestor HEAD origin/main >nul 2>&1
+if errorlevel 1 (
+    git -C "%REPO_DIR%" merge-base --is-ancestor origin/main HEAD >nul 2>&1
+    if not errorlevel 1 (
+        echo The local repository contains commits that are not on the server. Building locally.
+    ) else (
+        echo The local and server histories have diverged. Automatic update is unsafe; building locally.
+    )
+    exit /b 0
+)
+
+choice /c YN /n /m "A newer version is available. Download it before building? [Y/N]: "
+if errorlevel 2 (
+    echo Update skipped. Building the local version.
+    exit /b 0
+)
+
+git -C "%REPO_DIR%" diff --quiet --ignore-submodules --
+if errorlevel 1 (
+    echo Tracked local changes were found. Automatic update was skipped to protect them.
+    echo Building the local version.
+    exit /b 0
+)
+git -C "%REPO_DIR%" diff --cached --quiet --ignore-submodules --
+if errorlevel 1 (
+    echo Staged local changes were found. Automatic update was skipped to protect them.
+    echo Building the local version.
+    exit /b 0
+)
+
+rem This block is parsed before Git can replace the running batch file.
+(
+    git -C "%REPO_DIR%" merge --ff-only origin/main
+    if errorlevel 1 (
+        echo The update failed. Building the unchanged local version.
+        exit /b 0
+    )
+    echo Update completed. Restarting the build from the updated files...
+    call "%~f0" --skip-update-check
+    if errorlevel 1 exit /b 101
+    exit /b 100
+)
 
 :cancelled
 echo.

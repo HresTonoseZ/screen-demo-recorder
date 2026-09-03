@@ -64,6 +64,14 @@ class ProjectTests(unittest.TestCase):
         self.assertNotIn("Invoke-WebRequest", project)
         self.assertNotIn("Acquire-Ffmpeg", project)
 
+    def test_native_batch_checks_for_safe_repository_updates(self):
+        build_script = (ROOT / "build-native.bat").read_text(encoding="utf-8")
+        self.assertIn("fetch --quiet origin +refs/heads/main:refs/remotes/origin/main", build_script)
+        self.assertIn("A newer version is available", build_script)
+        self.assertIn("merge --ff-only origin/main", build_script)
+        self.assertIn("Building the local version", build_script)
+        self.assertIn("--skip-update-check", build_script)
+
 
 if __name__ == "__main__":
     unittest.main()
