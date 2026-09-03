@@ -10,6 +10,9 @@ internal static class CaptureTargetFactory
 {
     public static CaptureTarget Create(CaptureSettings settings, IReadOnlyList<DisplayInfo> displays, DesktopWindowInfo? selectedWindow)
     {
+#if RECORDER_DIAGNOSTICS
+        using var diagnosticScope = DiagnosticTrace.Step("Capture/CaptureTarget.Create", false);
+#endif
         if (settings.Source == CaptureSource.Window)
         {
             if (selectedWindow is null ||

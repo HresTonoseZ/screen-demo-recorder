@@ -39,12 +39,18 @@ internal sealed class FfmpegMp4Encoder : IAsyncDisposable
         process = new Process { StartInfo = CreateStartInfo(executablePath, outputPath,
             inputWidth, inputHeight, outputPlan, frameRate, bitrate) };
         if (!process.Start()) throw new InvalidOperationException("FFmpeg did not start the CPU H.264 encoder.");
+#if RECORDER_DIAGNOSTICS
+        DiagnosticTrace.Write("FFmpeg.H264 started pid=" + process.Id);
+#endif
         errors = process.StandardError.ReadToEndAsync();
         worker = WriteFramesAsync();
     }
 
     public async ValueTask WriteAsync(CpuVideoFrame frame, CancellationToken cancellationToken = default)
     {
+#if RECORDER_DIAGNOSTICS
+        using var diagnosticScope = DiagnosticTrace.Step("FFmpeg.H264.WriteAsync", true);
+#endif
         ArgumentNullException.ThrowIfNull(frame);
         try
         {
@@ -60,14 +66,25 @@ internal sealed class FfmpegMp4Encoder : IAsyncDisposable
 
     public async Task CompleteAsync(CancellationToken cancellationToken = default)
     {
+#if RECORDER_DIAGNOSTICS
+        using var diagnosticScope = DiagnosticTrace.Step("FFmpeg.H264.CompleteAsync", false);
+#endif
         if (completed) return;
         completed = true;
         frames.Writer.TryComplete();
         try
         {
+#if RECORDER_DIAGNOSTICS
+            using (DiagnosticTrace.Step("FFmpeg.H264.WaitWriter", false)) { await worker.ConfigureAwait(false); }
+            using (DiagnosticTrace.Step("FFmpeg.H264.WaitExit", false)) { await process.WaitForExitAsync(cancellationToken).ConfigureAwait(false); }
+#else
             await worker.ConfigureAwait(false);
             await process.WaitForExitAsync(cancellationToken).ConfigureAwait(false);
+#endif
             var diagnostics = await errors.ConfigureAwait(false);
+#if RECORDER_DIAGNOSTICS
+            DiagnosticTrace.Write($"FFmpeg.H264 exit={process.ExitCode}; stderr={diagnostics}");
+#endif
             if (process.ExitCode != 0)
                 throw new InvalidOperationException($"FFmpeg CPU H.264 encoding failed with exit code {process.ExitCode}: {LastLines(diagnostics)}");
         }
@@ -80,6 +97,9 @@ internal sealed class FfmpegMp4Encoder : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
+#if RECORDER_DIAGNOSTICS
+        using var diagnosticScope = DiagnosticTrace.Step("FFmpeg.H264.DisposeAsync", false);
+#endif
         try
         {
             if (!completed)
@@ -132,13 +152,20 @@ internal sealed class FfmpegMp4Encoder : IAsyncDisposable
         {
             await foreach (var frame in frames.Reader.ReadAllAsync().ConfigureAwait(false))
             {
+#if RECORDER_DIAGNOSTICS
+                using (frame) using (DiagnosticTrace.Step("FFmpeg.H264.PipeWrite", true)) { await process.StandardInput.BaseStream.WriteAsync(frame.Pixels).ConfigureAwait(false); }
+#else
                 using (frame) await process.StandardInput.BaseStream.WriteAsync(frame.Pixels).ConfigureAwait(false);
+#endif
             }
             await process.StandardInput.BaseStream.FlushAsync().ConfigureAwait(false);
             process.StandardInput.Close();
         }
         catch (Exception error)
         {
+#if RECORDER_DIAGNOSTICS
+            DiagnosticTrace.Error("Capture/FfmpegMp4Encoder.cs", error);
+#endif
             frames.Writer.TryComplete(error);
             if (!process.HasExited) process.Kill(true);
             throw;

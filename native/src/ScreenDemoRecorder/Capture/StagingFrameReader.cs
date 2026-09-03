@@ -20,6 +20,9 @@ internal sealed class StagingFrameReader(ID3D11Device device, ID3D11DeviceContex
 
     public void CopyFrom(ID3D11Texture2D source, PixelRect area)
     {
+#if RECORDER_DIAGNOSTICS
+        using var diagnosticScope = DiagnosticTrace.Step("D3D.CopyFrom", true);
+#endif
         ArgumentNullException.ThrowIfNull(source);
         var description = source.Description;
         if (area.X < 0 || area.Y < 0 || area.Width < 1 || area.Height < 1 ||
@@ -32,13 +35,20 @@ internal sealed class StagingFrameReader(ID3D11Device device, ID3D11DeviceContex
 
     public CpuVideoFrame ReadMapped(TimeSpan timestamp)
     {
+#if RECORDER_DIAGNOSTICS
+        using var diagnosticScope = DiagnosticTrace.Step("D3D.ReadMapped", true);
+#endif
         if (staging is null) throw new InvalidOperationException("No GPU frame has been copied for CPU readback.");
         var frame = new CpuVideoFrame(width, height, timestamp);
         var mapped = default(MappedSubresource);
         var isMapped = false;
         try
         {
+#if RECORDER_DIAGNOSTICS
+            using (DiagnosticTrace.Step("D3D.Map", true)) { context.Map(staging!, 0, MapMode.Read, Vortice.Direct3D11.MapFlags.None, out mapped).CheckError(); }
+#else
             context.Map(staging!, 0, MapMode.Read, Vortice.Direct3D11.MapFlags.None, out mapped).CheckError();
+#endif
             isMapped = true;
             for (var row = 0; row < height; row++)
             {

@@ -21,6 +21,9 @@ public partial class App : Application
 
     protected override void OnExit(ExitEventArgs e)
     {
+#if RECORDER_DIAGNOSTICS
+        DiagnosticTrace.Write("APP_EXIT code=" + e.ApplicationExitCode);
+#endif
         ApplicationThemeManager.Shutdown();
         if (ownsMutex) instanceMutex?.ReleaseMutex();
         instanceMutex?.Dispose();
@@ -29,14 +32,54 @@ public partial class App : Application
 
     private void Window_Loaded_ApplyTheme(object sender, RoutedEventArgs e)
     {
+#if RECORDER_DIAGNOSTICS
+        if (sender is Window window)
+        {
+            if (window is MainWindow && !window.Title.Contains("[Diagnostic]")) window.Title += " [Diagnostic]";
+            ApplicationThemeManager.ApplyToWindow(window);
+        }
+#else
         if (sender is Window window) ApplicationThemeManager.ApplyToWindow(window);
+#endif
     }
 
     protected override async void OnStartup(StartupEventArgs e)
     {
+#if RECORDER_DIAGNOSTICS
+        DiagnosticTrace.Attach(Dispatcher);
+        using var diagnosticStartup = DiagnosticTrace.Step("App.Startup");
+        if (e.Args is ["--diagnostic-log-self-test" or "--diagnostic-force-stop-test", _])
+        {
+            try
+            {
+                if (e.Args[0] == "--diagnostic-force-stop-test") await DiagnosticChecks.WaitForForcedStopAsync();
+                else await DiagnosticChecks.RunAsync();
+                Shutdown(0);
+            }
+            catch (Exception error) { DiagnosticTrace.Error("self-test failed", error); Shutdown(1); }
+            return;
+        }
+#endif
+        if (e.Args is ["--build-flavor-check", var flavorOutput])
+        {
+            var includesDiagnostics = typeof(App).Assembly.GetType("ScreenDemoRecorder.DiagnosticTrace") is not null;
+#if RECORDER_DIAGNOSTICS
+            const bool expectedDiagnostics = true;
+#else
+            const bool expectedDiagnostics = false;
+#endif
+            Directory.CreateDirectory(flavorOutput);
+            File.WriteAllText(Path.Combine(flavorOutput, "flavor.txt"), includesDiagnostics ? "DIAGNOSTIC" : "NORMAL");
+            Shutdown(includesDiagnostics == expectedDiagnostics ? 0 : 1);
+            return;
+        }
         var startupTimer = Stopwatch.StartNew();
         base.OnStartup(e);
+#if RECORDER_DIAGNOSTICS
+        using (DiagnosticTrace.Step("App.ThemeInitialize", false)) { ApplicationThemeManager.Initialize(); }
+#else
         ApplicationThemeManager.Initialize();
+#endif
         ShutdownMode = ShutdownMode.OnExplicitShutdown;
         string? smokeDirectory = e.Args is ["--smoke-test", var output] ? Path.GetFullPath(output) : null;
         string? cpuPipelineCheckDirectory = e.Args is ["--cpu-pipeline-smoke-test", var cpuPipelineOutput] ? Path.GetFullPath(cpuPipelineOutput) : null;
@@ -352,6 +395,9 @@ public partial class App : Application
         }
         catch (Exception error)
         {
+#if RECORDER_DIAGNOSTICS
+            DiagnosticTrace.Error("App.xaml.cs", error);
+#endif
             if (cpuPipelineCheckDirectory is not null)
                 await File.WriteAllTextAsync(Path.Combine(cpuPipelineCheckDirectory, "failure.txt"), error.ToString());
             else if (smokeDirectory is not null)

@@ -60,6 +60,9 @@ internal sealed class CpuIntermediateRecording
 
     public void TogglePause()
     {
+#if RECORDER_DIAGNOSTICS
+        using var diagnosticScope = DiagnosticTrace.Step("WGC.TogglePause", false);
+#endif
         lock (sync)
         {
             if (stopped || !ready.Task.IsCompletedSuccessfully || !ready.Task.Result) return;
@@ -71,6 +74,9 @@ internal sealed class CpuIntermediateRecording
 
     public void Stop()
     {
+#if RECORDER_DIAGNOSTICS
+        using var diagnosticScope = DiagnosticTrace.Step("WGC.Stop", false);
+#endif
         lock (sync)
         {
             if (stopped) return;
@@ -83,6 +89,9 @@ internal sealed class CpuIntermediateRecording
 
     private async Task RecordAsync()
     {
+#if RECORDER_DIAGNOSTICS
+        using var diagnosticScope = DiagnosticTrace.Step("WGC.RecordLifetime", false);
+#endif
         ID3D11Device? device = null;
         ID3D11DeviceContext? context = null;
         GraphicsCaptureItem? item = null;
@@ -90,24 +99,45 @@ internal sealed class CpuIntermediateRecording
         captureApartment = Thread.CurrentThread.GetApartmentState();
         try
         {
+#if RECORDER_DIAGNOSTICS
+            item = DiagnosticTrace.Call("WGC.CreateItem", createItem);
+            var sourceSize = DiagnosticTrace.Call("WGC.ItemSize", () => item.Size);
+            DiagnosticTrace.Write($"WGC_SOURCE {sourceSize.Width}x{sourceSize.Height}; fps={frameRate}");
+#else
             item = createItem();
             var sourceSize = item.Size;
+#endif
             if (area.Right > sourceSize.Width || area.Bottom > sourceSize.Height)
                 throw new ArgumentException("The capture region no longer fits. Select the area again.");
             CreateGraphicsDevice(out device, out context);
             using var multithread = device.QueryInterface<ID3D11Multithread>();
             multithread.SetMultithreadProtected(true);
+#if RECORDER_DIAGNOSTICS
+            using var captureDevice = DiagnosticTrace.Call("WGC.WrapDevice", () => GraphicsInterop.Wrap(device));
+            using var pool = DiagnosticTrace.Call("WGC.CreatePool", () => Direct3D11CaptureFramePool.CreateFreeThreaded(captureDevice,
+                DirectXPixelFormat.B8G8R8A8UIntNormalized, 2, sourceSize));
+            using var session = DiagnosticTrace.Call("WGC.CreateSession", () => pool.CreateCaptureSession(item));
+#else
             using var captureDevice = GraphicsInterop.Wrap(device);
             using var pool = Direct3D11CaptureFramePool.CreateFreeThreaded(captureDevice,
                 DirectXPixelFormat.B8G8R8A8UIntNormalized, 2, sourceSize);
             using var session = pool.CreateCaptureSession(item);
+#endif
             using var reader = new StagingFrameReader(device, context);
+#if RECORDER_DIAGNOSTICS
+            using (DiagnosticTrace.Step("WGC.SetCursor", false)) { session.IsCursorCaptureEnabled = showCursor; }
+#else
             session.IsCursorCaptureEnabled = showCursor;
+#endif
             pool.FrameArrived += FrameArrived;
             item.Closed += ItemClosed;
             try
             {
+#if RECORDER_DIAGNOSTICS
+                using (DiagnosticTrace.Step("WGC.StartCapture", false)) { session.StartCapture(); }
+#else
                 session.StartCapture();
+#endif
                 if (!await WaitForFirstFrameAsync().WaitAsync(TimeSpan.FromSeconds(10))) return;
                 await using var encoder = new FfmpegLosslessEncoder(FfmpegRuntime.RequireExecutable(), outputPath,
                     area.Width, area.Height, frameRate);
@@ -118,12 +148,21 @@ internal sealed class CpuIntermediateRecording
                     ready.TrySetResult(true);
                 }
                 await SampleFramesAsync(reader, encoder);
+#if RECORDER_DIAGNOSTICS
+                using (DiagnosticTrace.Step("WGC.CompleteEncoder", false)) { await encoder.CompleteAsync(); }
+#else
                 await encoder.CompleteAsync();
+#endif
             }
             finally
             {
+#if RECORDER_DIAGNOSTICS
+                using (DiagnosticTrace.Step("WGC.UnsubscribeFrame", false)) { pool.FrameArrived -= FrameArrived; }
+                using (DiagnosticTrace.Step("WGC.UnsubscribeClosed", false)) { item.Closed -= ItemClosed; }
+#else
                 pool.FrameArrived -= FrameArrived;
                 item.Closed -= ItemClosed;
+#endif
             }
             if (failure is not null) throw new InvalidOperationException(failure.Message, failure);
         }
@@ -136,14 +175,23 @@ internal sealed class CpuIntermediateRecording
                 latest?.Dispose();
                 latest = null;
             }
+#if RECORDER_DIAGNOSTICS
+            using (DiagnosticTrace.Step("D3D.DisposeContext", false)) { context?.Dispose(); }
+            using (DiagnosticTrace.Step("D3D.DisposeDevice", false)) { device?.Dispose(); }
+            if (item is not null) using (DiagnosticTrace.Step("WGC.ReleaseItem", false)) { GraphicsInterop.Release(item); }
+#else
             context?.Dispose();
             device?.Dispose();
             if (item is not null) GraphicsInterop.Release(item);
+#endif
         }
     }
 
     private async Task SampleFramesAsync(StagingFrameReader reader, FfmpegLosslessEncoder encoder)
     {
+#if RECORDER_DIAGNOSTICS
+        using var diagnosticScope = DiagnosticTrace.Step("WGC.SampleLoop", false);
+#endif
         var period = (long)Math.Round(TimeSpan.TicksPerSecond / frameRate);
         long nextFrameTicks = 0;
         while (true)
@@ -174,16 +222,29 @@ internal sealed class CpuIntermediateRecording
                 if (stopped) return;
                 if (latest is null) continue;
                 using var input = GraphicsInterop.Unwrap(latest.Surface);
+#if RECORDER_DIAGNOSTICS
+                using (DiagnosticTrace.Step("WGC.CopyTexture", true)) { reader.CopyFrom(input, area); }
+#else
                 reader.CopyFrom(input, area);
+#endif
             }
+#if RECORDER_DIAGNOSTICS
+            var frame = DiagnosticTrace.Call("WGC.MapReadback", () => reader.ReadMapped(TimeSpan.FromTicks(nextFrameTicks)), true);
+            using (DiagnosticTrace.Step("WGC.EnqueueFrame", true)) { await encoder.WriteAsync(frame); }
+            DiagnosticTrace.Count("WGC.framesSubmitted");
+#else
             var frame = reader.ReadMapped(TimeSpan.FromTicks(nextFrameTicks));
             await encoder.WriteAsync(frame);
+#endif
             nextFrameTicks = checked(nextFrameTicks + period);
         }
     }
 
     private async Task<bool> WaitForFirstFrameAsync()
     {
+#if RECORDER_DIAGNOSTICS
+        using var diagnosticScope = DiagnosticTrace.Step("WGC.WaitFirstFrame", false);
+#endif
         while (true)
         {
             Task signal;
@@ -200,12 +261,20 @@ internal sealed class CpuIntermediateRecording
 
     private void FrameArrived(Direct3D11CaptureFramePool sender, object args)
     {
+#if RECORDER_DIAGNOSTICS
+        using var diagnosticScope = DiagnosticTrace.Step("WGC.FrameArrived", true);
+#endif
         lock (sync)
         {
             if (stopped) return;
             try
             {
+#if RECORDER_DIAGNOSTICS
+                var frame = DiagnosticTrace.Call("WGC.TryGetNextFrame", () => sender.TryGetNextFrame(), true);
+                DiagnosticTrace.Count("WGC.frameCallbacks");
+#else
                 var frame = sender.TryGetNextFrame();
+#endif
                 if (frame is null) return;
                 if (frame.ContentSize.Width < area.Right || frame.ContentSize.Height < area.Bottom)
                 {
@@ -218,6 +287,9 @@ internal sealed class CpuIntermediateRecording
             }
             catch (Exception error)
             {
+#if RECORDER_DIAGNOSTICS
+            DiagnosticTrace.Error("Capture/CpuIntermediateRecording.cs", error);
+#endif
                 failure ??= error;
                 Pulse();
             }
@@ -235,12 +307,21 @@ internal sealed class CpuIntermediateRecording
 
     private static void CreateGraphicsDevice(out ID3D11Device device, out ID3D11DeviceContext context)
     {
+#if RECORDER_DIAGNOSTICS
+        using var diagnosticScope = DiagnosticTrace.Step("D3D.CreateDevice", false);
+#endif
         FeatureLevel[] levels = [FeatureLevel.Level_11_1, FeatureLevel.Level_11_0, FeatureLevel.Level_10_1, FeatureLevel.Level_10_0];
         var result = D3D11.D3D11CreateDevice(null, DriverType.Hardware, DeviceCreationFlags.BgraSupport,
             levels, out device, out context);
+#if RECORDER_DIAGNOSTICS
+        DiagnosticTrace.Write("D3D hardware result=" + result);
+#endif
         if (result.Failure)
             result = D3D11.D3D11CreateDevice(null, DriverType.Warp, DeviceCreationFlags.BgraSupport,
                 levels, out device, out context);
+#if RECORDER_DIAGNOSTICS
+        DiagnosticTrace.Write("D3D final result=" + result);
+#endif
         result.CheckError();
     }
 
@@ -264,6 +345,9 @@ internal sealed class CpuIntermediateRecording
             }
             catch (Exception error)
             {
+#if RECORDER_DIAGNOSTICS
+            DiagnosticTrace.Error("Capture/CpuIntermediateRecording.cs", error);
+#endif
                 completion.TrySetException(error);
             }
         })

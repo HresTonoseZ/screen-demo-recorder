@@ -12,6 +12,9 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <FfmpegRuntimeDirectory>$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)\..\..\vendor\ffmpeg'))</FfmpegRuntimeDirectory>
   </PropertyGroup>
+  <ItemGroup Condition="'$(RecorderDiagnostics)' != 'true'">
+    <Compile Remove="Diagnostics\**\*.cs" />
+  </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Vortice.Direct3D11" Version="3.8.3" />
     <!-- Vortice 3.8 packages the WIC GIF metadata API with Direct2D1; no Direct2D rendering is used. -->

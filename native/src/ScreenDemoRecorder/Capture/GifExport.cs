@@ -26,24 +26,46 @@ internal static class GifExport
     private static string Convert(string sourcePath, PixelRect content, RecorderProfile profile,
         IProgress<GifProgress>? progress, CancellationToken cancellation)
     {
+#if RECORDER_DIAGNOSTICS
+        using var diagnosticScope = DiagnosticTrace.Step("GIF.Convert", false);
+#endif
         cancellation.ThrowIfCancellationRequested();
+#if RECORDER_DIAGNOSTICS
+        using (DiagnosticTrace.Step("GIF.MFStartup", false)) { MFStartup().CheckError(); }
+#else
         MFStartup().CheckError();
+#endif
         try { return ConvertCore(sourcePath, content, profile, progress, cancellation); }
+#if RECORDER_DIAGNOSTICS
+        finally { using (DiagnosticTrace.Step("GIF.MFShutdown", false)) { MFShutdown().CheckError(); } }
+#else
         finally { MFShutdown().CheckError(); }
+#endif
     }
 
     private static string ConvertCore(string sourcePath, PixelRect content, RecorderProfile profile,
         IProgress<GifProgress>? progress, CancellationToken cancellation)
     {
+#if RECORDER_DIAGNOSTICS
+        using var diagnosticScope = DiagnosticTrace.Step("GIF.ConvertCore", false);
+#endif
         using var attributes = MFCreateAttributes(1);
         attributes.Set(SourceReaderAttributeKeys.EnableVideoProcessing, true).CheckError();
+#if RECORDER_DIAGNOSTICS
+        using var reader = DiagnosticTrace.Call("GIF.CreateSourceReader", () => MFCreateSourceReaderFromURL(Path.GetFullPath(sourcePath), attributes));
+#else
         using var reader = MFCreateSourceReaderFromURL(Path.GetFullPath(sourcePath), attributes);
+#endif
         reader.SetStreamSelection(SourceReaderIndex.AllStreams, false);
         reader.SetStreamSelection(SourceReaderIndex.FirstVideoStream, true);
         using var requested = MFCreateMediaType();
         requested.Set(MediaTypeAttributeKeys.MajorType, MediaTypeGuids.Video).CheckError();
         requested.Set(MediaTypeAttributeKeys.Subtype, VideoFormatGuids.Rgb32).CheckError();
+#if RECORDER_DIAGNOSTICS
+        using (DiagnosticTrace.Step("GIF.SetMediaType", false)) { reader.SetCurrentMediaType(SourceReaderIndex.FirstVideoStream, requested); }
+#else
         reader.SetCurrentMediaType(SourceReaderIndex.FirstVideoStream, requested);
+#endif
         using var actual = reader.GetCurrentMediaType(SourceReaderIndex.FirstVideoStream);
         var size = actual.GetUInt64(MediaTypeAttributeKeys.FrameSize);
         var width = checked((int)(size >> 32));
@@ -78,8 +100,14 @@ internal static class GifExport
                     while (true)
                     {
                         cancellation.ThrowIfCancellationRequested();
+#if RECORDER_DIAGNOSTICS
+                        using var diagnosticDecode = DiagnosticTrace.Step("GIF.ReadSampleAndProcess", true);
+#endif
                         var next = reader.ReadSample(SourceReaderIndex.FirstVideoStream, SourceReaderControlFlag.None,
                             out _, out var flags, out var timestamp);
+#if RECORDER_DIAGNOSTICS
+                        DiagnosticTrace.Count("GIF.samplesRead");
+#endif
                         try
                         {
                             if ((flags & SourceReaderFlag.Error) != 0) throw new IOException("The video decoder failed.");
@@ -98,7 +126,11 @@ internal static class GifExport
                     if (current is null) throw new IOException("The source recording contains no video frames.");
                     WriteUntil(duration.Ticks);
                     cancellation.ThrowIfCancellationRequested();
+#if RECORDER_DIAGNOSTICS
+                    using (DiagnosticTrace.Step("GIF.CommitEncoder", false)) { encoder.Commit(); }
+#else
                     encoder.Commit();
+#endif
 
                     void WriteUntil(long boundary)
                     {
@@ -109,7 +141,11 @@ internal static class GifExport
                         using var scaler = factory.CreateBitmapScaler();
                         scaler.Initialize(bitmap, (uint)plan.Width, (uint)plan.Height, BitmapInterpolationMode.HighQualityCubic);
                         using var palette = factory.CreatePalette();
+#if RECORDER_DIAGNOSTICS
+                        using (DiagnosticTrace.Step("GIF.Palette", true)) { palette.InitializeFromBitmap(scaler, (uint)Math.Clamp(profile.Output.GifPaletteColors, 2, 256), false); }
+#else
                         palette.InitializeFromBitmap(scaler, (uint)Math.Clamp(profile.Output.GifPaletteColors, 2, 256), false);
+#endif
                         using var indexed = factory.CreateFormatConverter();
                         indexed.Initialize(scaler, PixelFormat.Format8bppIndexed,
                             profile.Output.GifDither ? BitmapDitherType.ErrorDiffusion : BitmapDitherType.None,
@@ -127,9 +163,16 @@ internal static class GifExport
                                 SetMetadata(metadata, "/grctlext/Delay", plan.DelayCentiseconds(index));
                                 SetMetadata(metadata, "/grctlext/Disposal", (byte)1);
                             }
+#if RECORDER_DIAGNOSTICS
+                            using (DiagnosticTrace.Step("GIF.WriteFrame", true)) { frame.WriteSource(indexed).CheckError(); }
+#else
                             frame.WriteSource(indexed).CheckError();
+#endif
                             frame.Commit();
                             index++;
+#if RECORDER_DIAGNOSTICS
+                            DiagnosticTrace.Count("GIF.framesWritten");
+#endif
                             if (index == 1 || index == plan.FrameCount || progressClock.ElapsedMilliseconds >= 100)
                             {
                                 progress?.Report(new GifProgress(index, plan.FrameCount));
@@ -182,6 +225,9 @@ internal static class GifExport
 
     private static void CopyPixels(IMFSample sample, int width, int height, FrameLayout layout, byte[] pixels)
     {
+#if RECORDER_DIAGNOSTICS
+        using var diagnosticScope = DiagnosticTrace.Step("GIF.CopyPixels", true);
+#endif
         using var buffer = sample.ConvertToContiguousBuffer();
         using var twoDimensional = buffer.QueryInterfaceOrNull<IMF2DBuffer>();
         if (twoDimensional is not null)

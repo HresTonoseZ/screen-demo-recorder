@@ -23,6 +23,10 @@ public partial class MainWindow
 
     internal void ExecuteRecordingCommand(RecorderCommand command)
     {
+#if RECORDER_DIAGNOSTICS
+        using var diagnosticScope = DiagnosticTrace.Step("UI.RecordingCommand", false);
+        DiagnosticTrace.Write("COMMAND " + command);
+#endif
         if (dispatchingRecordingCommand || profileOperation || closeAllowed || editingHotkeys || !IsEnabled) return;
         dispatchingRecordingCommand = true;
         try
@@ -52,6 +56,9 @@ public partial class MainWindow
 
     private async Task RecordAsync()
     {
+#if RECORDER_DIAGNOSTICS
+        using var diagnosticScope = DiagnosticTrace.Step("UI.RecordAsync", false);
+#endif
         recordingBusy = true;
         countdown = new CancellationTokenSource();
         ProfilePanel.IsEnabled = SettingsPanel.IsEnabled = false;
@@ -66,6 +73,9 @@ public partial class MainWindow
         {
             await SaveNowAsync();
             var snapshot = store.GetActiveProfile();
+#if RECORDER_DIAGNOSTICS
+            DiagnosticTrace.Write($"SETTINGS format={snapshot.Output.Format}; autoFps={snapshot.Capture.AutomaticFps}; fps={snapshot.Capture.RecordingFps}; gifFps={snapshot.Capture.GifFps}; liveLabel={snapshot.Overlays.Desktop.ShowLabel}; liveKeys={snapshot.Overlays.Desktop.ShowKeystrokes}; liveClicks={snapshot.Overlays.Desktop.ShowMouseClicks}; label={snapshot.Overlays.Label.Enabled}; keys={snapshot.Overlays.Keystrokes.Enabled}");
+#endif
             var target = CaptureTargetFactory.Create(snapshot.Capture, displays, selectedWindow);
             for (var seconds = snapshot.Capture.CountdownSeconds; seconds > 0; seconds--)
             {
@@ -81,10 +91,19 @@ public partial class MainWindow
                 _ = new GifExportPlan(area.Width, area.Height, TimeSpan.FromSeconds(1), snapshot.Capture, snapshot.Output);
             RecordButton.Content = "Starting…";
             StatusText.Text = "Preparing clean CPU capture…";
+#if RECORDER_DIAGNOSTICS
+            DiagnosticTrace.Write($"GEOMETRY {area.Width}x{area.Height}");
+            var overlays = DiagnosticTrace.Call("UI.CreateOverlays", () => RecordingOverlayPipeline.Create(snapshot, area.Width, area.Height));
+#else
             var overlays = RecordingOverlayPipeline.Create(snapshot, area.Width, area.Height);
+#endif
             boundary?.Dispose(); boundary = null;
             desktopOverlay?.Dispose(); desktopOverlay = null;
+#if RECORDER_DIAGNOSTICS
+            using (DiagnosticTrace.Step("UI.FlushComposition", false)) { NativeDesktop.FlushComposition(); }
+#else
             NativeDesktop.FlushComposition();
+#endif
             recording = new CpuRecordingSession(target.CreateItem, area, snapshot,
                 snapshot.Capture.AutomaticFps ? 30 : snapshot.Capture.RecordingFps,
                 overlays,
@@ -104,7 +123,11 @@ public partial class MainWindow
             if (await recording.Ready)
             {
                 PauseButton.Visibility = Visibility.Visible;
+#if RECORDER_DIAGNOSTICS
+                using (DiagnosticTrace.Step("UI.RefreshBoundary")) { RefreshBoundary(); }
+#else
                 RefreshBoundary();
+#endif
                 UpdateSessionStatus();
                 timer.Start();
             }
@@ -115,7 +138,11 @@ public partial class MainWindow
             desktopOverlay?.Dispose(); desktopOverlay = null;
             recording = null;
             PauseButton.Visibility = Visibility.Collapsed;
+#if RECORDER_DIAGNOSTICS
+            using (DiagnosticTrace.Step("UI.RefreshBoundary")) { RefreshBoundary(); }
+#else
             RefreshBoundary();
+#endif
             if (path is not null && snapshot.Output.Format == OutputFormat.Gif && !closingAfterRecording)
             {
                 path = await ExportGifAsync(path, area, snapshot);
@@ -139,6 +166,9 @@ public partial class MainWindow
         catch (OperationCanceledException) { StatusText.Text = "Countdown cancelled"; }
         catch (RecordingFailureException error)
         {
+#if RECORDER_DIAGNOSTICS
+            DiagnosticTrace.Error("MainWindow.Recording.cs", error);
+#endif
             StatusText.Text = "Recording stopped";
             if (closingAfterRecording) return;
             var recovery = new RecordingFailureWindow(error) { Owner = this };
@@ -152,7 +182,12 @@ public partial class MainWindow
                 StatusText.Text = "Safer MP4 settings applied · press Record to try again";
             }
         }
+#if RECORDER_DIAGNOSTICS
+        catch (Exception error) {
+            DiagnosticTrace.Error("MainWindow.Recording.cs", error); StatusText.Text = "Recording failed"; ShowError(error, "Cannot Record"); }
+#else
         catch (Exception error) { StatusText.Text = "Recording failed"; ShowError(error, "Cannot Record"); }
+#endif
         finally
         {
             timer.Stop(); timer.Tick -= RecordingTick;
@@ -165,7 +200,11 @@ public partial class MainWindow
             ShortcutsButton.IsEnabled = true;
             ApplicationSettingsButton.IsEnabled = true;
             PauseButton.Visibility = CancelButton.Visibility = Visibility.Collapsed;
+#if RECORDER_DIAGNOSTICS
+            UpdateRecordLabel(); using (DiagnosticTrace.Step("UI.RefreshBoundary")) { RefreshBoundary(); }
+#else
             UpdateRecordLabel(); RefreshBoundary();
+#endif
         }
     }
 
@@ -247,6 +286,9 @@ public partial class MainWindow
 
     private async Task<string?> ExportGifAsync(string sourcePath, PixelRect area, RecorderProfile snapshot)
     {
+#if RECORDER_DIAGNOSTICS
+        using var diagnosticScope = DiagnosticTrace.Step("UI.ExportGifAsync", false);
+#endif
         exportCancellation = new CancellationTokenSource();
         RecordButton.Content = "Exporting GIF…";
         RecordButton.IsEnabled = false;
@@ -283,6 +325,9 @@ public partial class MainWindow
         }
         catch (Exception error)
         {
+#if RECORDER_DIAGNOSTICS
+            DiagnosticTrace.Error("MainWindow.Recording.cs", error);
+#endif
             StatusText.Text = $"GIF failed · MP4 kept: {Path.GetFileName(sourcePath)}";
             StatusText.ToolTip = sourcePath;
             ShowError(new IOException($"{error.Message}\n\nYour MP4 recording is safe:\n{sourcePath}", error), "Cannot Export GIF");

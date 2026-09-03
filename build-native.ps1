@@ -20,25 +20,16 @@ try {
     # A unique test output keeps a failed check from locking the next verification build.
     $verificationId = 'verification-' + [Guid]::NewGuid().ToString('N')
     $verificationBase = "bin\$verificationId\"
-    & $DotNet build native\ScreenDemoRecorder.sln -c $Configuration --nologo --disable-build-servers `
+    & $DotNet build native\ScreenDemoRecorder.sln -c $Configuration -p:RecorderDiagnostics=false --nologo --disable-build-servers `
         "-p:BaseOutputPath=$verificationBase"
     if ($LASTEXITCODE -ne 0) { throw 'Native solution build failed.' }
     & $DotNet "native\tests\ScreenDemoRecorder.CoreChecks\$verificationBase$Configuration\net10.0\ScreenDemoRecorder.CoreChecks.dll"
     if ($LASTEXITCODE -ne 0) { throw 'Native core checks failed.' }
-    & $DotNet publish native\src\ScreenDemoRecorder\ScreenDemoRecorder.csproj -c $Configuration -r win-x64 --self-contained true -p:PublishSingleFile=false -o dist\native-preview --nologo --disable-build-servers
+    & $DotNet publish native\src\ScreenDemoRecorder\ScreenDemoRecorder.csproj -c $Configuration -r win-x64 --self-contained true -p:RecorderDiagnostics=false -p:PublishSingleFile=false -o dist\native-preview --nologo --disable-build-servers
     if ($LASTEXITCODE -ne 0) { throw 'Native publishing failed.' }
     $exe = Join-Path $PSScriptRoot 'dist\native-preview\ScreenDemoRecorder.exe'
-    $smokePath = Join-Path $PSScriptRoot ('build\native-published-smoke-' + [Guid]::NewGuid().ToString('N'))
-    $run = Start-Process -FilePath $exe -ArgumentList @('--smoke-test', ('"' + $smokePath + '"')) -WindowStyle Hidden -PassThru -Wait
-    if ($run.ExitCode -ne 0) { throw "Native UI checks failed. See $smokePath\failure.txt" }
-    Get-Content -LiteralPath (Join-Path $smokePath 'result.txt')
-    $cpuPipelinePath = Join-Path $PSScriptRoot ('build\native-cpu-pipeline-' + [Guid]::NewGuid().ToString('N'))
-    $cpuPipeline = Start-Process -FilePath $exe -ArgumentList @('--cpu-pipeline-smoke-test', ('"' + $cpuPipelinePath + '"')) -WindowStyle Hidden -PassThru -Wait
-    if ($cpuPipeline.ExitCode -ne 0) { throw "Native CPU pipeline checks failed. See $cpuPipelinePath\failure.txt" }
-    Get-Content -LiteralPath (Join-Path $cpuPipelinePath 'result.txt')
-    if ($VerifyRecording) {
-        Get-Content -LiteralPath (Join-Path $cpuPipelinePath 'gif-result.txt')
-    }
+    $checkPath = Join-Path $PSScriptRoot ('build\native-checks-' + [Guid]::NewGuid().ToString('N'))
+    & "$PSScriptRoot\scripts\test-native-build.ps1" -Executable $exe -TestDirectory $checkPath -ShowGifResults:$VerifyRecording
     if ($BenchmarkStartup) {
         $benchmarkPath = Join-Path $PSScriptRoot ('build\native-startup-' + [Guid]::NewGuid().ToString('N'))
         $samples = foreach ($sampleIndex in 1..5) {

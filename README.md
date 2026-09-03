@@ -223,6 +223,11 @@ deleted.
 
 Build and verify the self-contained preview with `.\build-native.ps1`, then run
 `dist\native-preview\ScreenDemoRecorder.exe`. Keep its adjacent files together.
+For troubleshooting another PC, run `build-diagnostic.bat`. It builds and tests
+a separate logging-enabled version and portable ZIP from the local source,
+without changing Git or the normal preview. The normal build has no diagnostic
+watchdog or journal. See [diagnostic builds](docs/DIAGNOSTICS.md) for collecting
+logs, retention limits and automated hang checks.
 The pinned Windows x64 LGPL shared FFmpeg runtime is stored in this repository,
 so native builds never download it from an external host. Every build validates
 the local runtime and bundles it beside the application. It also runs a real

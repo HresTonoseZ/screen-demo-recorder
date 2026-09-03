@@ -80,7 +80,12 @@ public partial class MainWindow : Window
             if (profileOperation) return;
             IsEnabled = false;
             try { await TryCloseToTrayAsync(); }
+#if RECORDER_DIAGNOSTICS
+            catch (Exception error) {
+            DiagnosticTrace.Error("MainWindow.xaml.cs", error); ShowError(error, "Cannot Close to Notification Area"); }
+#else
             catch (Exception error) { ShowError(error, "Cannot Close to Notification Area"); }
+#endif
             finally { IsEnabled = true; }
             return;
         }
@@ -99,7 +104,12 @@ public partial class MainWindow : Window
                 if (recordingTask is not null) await recordingTask;
                 await SaveNowAsync(); closeAllowed = true; _ = Dispatcher.InvokeAsync(Close);
             }
+#if RECORDER_DIAGNOSTICS
+            catch (Exception error) {
+            DiagnosticTrace.Error("MainWindow.xaml.cs", error); closingAfterRecording = false; IsEnabled = true; ConfigureHotkeys(); ShowError(error, "Cannot Save Before Closing"); }
+#else
             catch (Exception error) { closingAfterRecording = false; IsEnabled = true; ConfigureHotkeys(); ShowError(error, "Cannot Save Before Closing"); }
+#endif
             return;
         }
         pendingSave?.Cancel(); pendingSave?.Dispose();
@@ -239,6 +249,9 @@ public partial class MainWindow : Window
         }
         catch (Exception error)
         {
+#if RECORDER_DIAGNOSTICS
+            DiagnosticTrace.Error("MainWindow.xaml.cs", error);
+#endif
             StatusText.Text = "Save failed";
             MessageBox.Show(this, error.Message, "Cannot Save Profile", MessageBoxButton.OK, MessageBoxImage.Error);
         }
@@ -271,6 +284,9 @@ public partial class MainWindow : Window
         }
         catch (Exception error)
         {
+#if RECORDER_DIAGNOSTICS
+            DiagnosticTrace.Error("MainWindow.xaml.cs", error);
+#endif
             MessageBox.Show(this, error.Message, "Cannot Switch Profile", MessageBoxButton.OK, MessageBoxImage.Error);
             RefreshProfileList();
         }
@@ -301,6 +317,9 @@ public partial class MainWindow : Window
         }
         catch (Exception error)
         {
+#if RECORDER_DIAGNOSTICS
+            DiagnosticTrace.Error("MainWindow.xaml.cs", error);
+#endif
             MessageBox.Show(this, error.Message, "Cannot Duplicate Profile", MessageBoxButton.OK, MessageBoxImage.Error);
         }
         finally { profileOperation = false; IsEnabled = true; }
@@ -328,6 +347,9 @@ public partial class MainWindow : Window
         }
         catch (Exception error)
         {
+#if RECORDER_DIAGNOSTICS
+            DiagnosticTrace.Error("MainWindow.xaml.cs", error);
+#endif
             MessageBox.Show(this, error.Message, "Cannot Rename Profile", MessageBoxButton.OK, MessageBoxImage.Error);
         }
         finally { profileOperation = false; IsEnabled = true; }
@@ -356,6 +378,9 @@ public partial class MainWindow : Window
         }
         catch (Exception error)
         {
+#if RECORDER_DIAGNOSTICS
+            DiagnosticTrace.Error("MainWindow.xaml.cs", error);
+#endif
             MessageBox.Show(this, error.Message, "Cannot Delete Profile", MessageBoxButton.OK, MessageBoxImage.Error);
         }
         finally { profileOperation = false; IsEnabled = true; }
@@ -372,7 +397,12 @@ public partial class MainWindow : Window
             LoadActiveProfile();
             StatusText.Text = "Profile reset";
         }
+#if RECORDER_DIAGNOSTICS
+        catch (Exception error) {
+            DiagnosticTrace.Error("MainWindow.xaml.cs", error); ShowError(error, "Cannot Reset Profile"); }
+#else
         catch (Exception error) { ShowError(error, "Cannot Reset Profile"); }
+#endif
         finally { profileOperation = false; IsEnabled = true; }
     }
 
@@ -395,7 +425,12 @@ public partial class MainWindow : Window
             await store.ExportActiveAsync(dialog.FileName);
             StatusText.Text = $"Exported {Path.GetFileName(dialog.FileName)}";
         }
+#if RECORDER_DIAGNOSTICS
+        catch (Exception error) {
+            DiagnosticTrace.Error("MainWindow.xaml.cs", error); ShowError(error, "Cannot Export Profile"); }
+#else
         catch (Exception error) { ShowError(error, "Cannot Export Profile"); }
+#endif
         finally { profileOperation = false; IsEnabled = true; }
     }
 
@@ -419,7 +454,12 @@ public partial class MainWindow : Window
             LoadActiveProfile();
             StatusText.Text = $"Imported profile: {imported}";
         }
+#if RECORDER_DIAGNOSTICS
+        catch (Exception error) {
+            DiagnosticTrace.Error("MainWindow.xaml.cs", error); ShowError(error, "Cannot Import Profile"); }
+#else
         catch (Exception error) { ShowError(error, "Cannot Import Profile"); }
+#endif
         finally { profileOperation = false; IsEnabled = true; }
     }
 
@@ -438,7 +478,12 @@ public partial class MainWindow : Window
             LoadActiveProfile();
             StatusText.Text = "Application settings saved";
         }
+#if RECORDER_DIAGNOSTICS
+        catch (Exception error) {
+            DiagnosticTrace.Error("MainWindow.xaml.cs", error); ShowError(error, "Cannot Save Application Settings"); }
+#else
         catch (Exception error) { ShowError(error, "Cannot Save Application Settings"); }
+#endif
         finally { profileOperation = false; IsEnabled = true; }
     }
 
@@ -457,7 +502,12 @@ public partial class MainWindow : Window
             LoadActiveProfile();
             StatusText.Text = "Advanced capture settings saved";
         }
+#if RECORDER_DIAGNOSTICS
+        catch (Exception error) {
+            DiagnosticTrace.Error("MainWindow.xaml.cs", error); ShowError(error, "Cannot Save Capture Settings"); }
+#else
         catch (Exception error) { ShowError(error, "Cannot Save Capture Settings"); }
+#endif
         finally { profileOperation = false; IsEnabled = true; }
     }
 
@@ -528,7 +578,12 @@ public partial class MainWindow : Window
     {
         if (sender is not MenuItem { Tag: string path }) return;
         try { Process.Start(new ProcessStartInfo(path) { UseShellExecute = true }); }
+#if RECORDER_DIAGNOSTICS
+        catch (Exception error) {
+            DiagnosticTrace.Error("MainWindow.xaml.cs", error); ShowError(error, "Cannot Open Recording"); }
+#else
         catch (Exception error) { ShowError(error, "Cannot Open Recording"); }
+#endif
     }
 
     private async void EditOverlays_Click(object sender, RoutedEventArgs e)
@@ -553,7 +608,12 @@ public partial class MainWindow : Window
                 RefreshBoundary();
             }
         }
+#if RECORDER_DIAGNOSTICS
+        catch (Exception error) {
+            DiagnosticTrace.Error("MainWindow.xaml.cs", error); ShowError(error, "Cannot Save Overlays"); }
+#else
         catch (Exception error) { ShowError(error, "Cannot Save Overlays"); }
+#endif
         finally { profileOperation = false; IsEnabled = true; }
     }
 
@@ -578,7 +638,12 @@ public partial class MainWindow : Window
                     RefreshBoundary();
                 }
             }
+#if RECORDER_DIAGNOSTICS
+            catch (Exception error) {
+            DiagnosticTrace.Error("MainWindow.xaml.cs", error); ShowError(error, "Window Selection Failed"); }
+#else
             catch (Exception error) { ShowError(error, "Window Selection Failed"); }
+#endif
             return;
         }
         if (DisplayComboBox.SelectedItem is not DisplayInfo display) return;
@@ -601,7 +666,12 @@ public partial class MainWindow : Window
                 await SaveNowAsync();
             }
         }
+#if RECORDER_DIAGNOSTICS
+        catch (Exception error) {
+            DiagnosticTrace.Error("MainWindow.xaml.cs", error); ShowError(error, "Region Selection Failed"); }
+#else
         catch (Exception error) { ShowError(error, "Region Selection Failed"); }
+#endif
         finally { Show(); Activate(); RefreshBoundary(); }
     }
 
@@ -628,6 +698,9 @@ public partial class MainWindow : Window
 
     private void RefreshBoundary()
     {
+#if RECORDER_DIAGNOSTICS
+        using var diagnosticScope = DiagnosticTrace.Step("MainWindow.RefreshBoundary", false);
+#endif
         if (recordingBusy && recording is null) return;
         boundary?.Dispose(); boundary = null;
         desktopOverlay?.Dispose(); desktopOverlay = null;
@@ -649,6 +722,9 @@ public partial class MainWindow : Window
         }
         catch (Exception error)
         {
+#if RECORDER_DIAGNOSTICS
+            DiagnosticTrace.Error("MainWindow.xaml.cs", error);
+#endif
             boundary?.Dispose(); boundary = null;
             desktopOverlay?.Dispose(); desktopOverlay = null;
             liveOverlayWarning = $"Live overlay disabled because Windows could not verify capture exclusion: {error.Message}";
@@ -687,6 +763,10 @@ public partial class MainWindow : Window
 
     private void ShowError(Exception error, string title)
     {
+#if RECORDER_DIAGNOSTICS
+        using var diagnosticScope = DiagnosticTrace.Step("MainWindow.ShowError", false);
+        DiagnosticTrace.Error("ShowError", error);
+#endif
         MessageBox.Show(this, error.Message, title, MessageBoxButton.OK, MessageBoxImage.Error);
     }
 
@@ -769,7 +849,12 @@ public partial class MainWindow : Window
             LoadActiveProfile();
             StatusText.Text = "GIF settings saved";
         }
+#if RECORDER_DIAGNOSTICS
+        catch (Exception error) {
+            DiagnosticTrace.Error("MainWindow.xaml.cs", error); ShowError(error, "Cannot Save GIF Settings"); }
+#else
         catch (Exception error) { ShowError(error, "Cannot Save GIF Settings"); }
+#endif
         finally { profileOperation = false; IsEnabled = true; }
     }
 
@@ -789,7 +874,12 @@ public partial class MainWindow : Window
             LoadActiveProfile();
             StatusText.Text = "MP4 settings saved";
         }
+#if RECORDER_DIAGNOSTICS
+        catch (Exception error) {
+            DiagnosticTrace.Error("MainWindow.xaml.cs", error); ShowError(error, "Cannot Save MP4 Settings"); }
+#else
         catch (Exception error) { ShowError(error, "Cannot Save MP4 Settings"); }
+#endif
         finally { profileOperation = false; IsEnabled = true; }
     }
 

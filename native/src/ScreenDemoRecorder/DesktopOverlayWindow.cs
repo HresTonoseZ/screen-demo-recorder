@@ -33,6 +33,9 @@ internal sealed class DesktopOverlayWindow : IDisposable
     public DesktopOverlayWindow(PixelRect bounds, OverlaySettings overlays, CaptureSettings capture,
         bool captureInput = true, Func<TimeSpan>? recordingTime = null)
     {
+#if RECORDER_DIAGNOSTICS
+        using var diagnosticScope = DiagnosticTrace.Step("DesktopOverlayWindow.DesktopOverlayWindow", false);
+#endif
         screenBounds = bounds;
         timelineNow = new LiveOverlayTimeSource(recordingTime ?? (() => clock.Elapsed));
         timer = new DispatcherTimer(DispatcherPriority.Render)
@@ -147,6 +150,9 @@ internal sealed class DesktopOverlayWindow : IDisposable
 
     private void RenderDynamicOverlays(object? sender, EventArgs e)
     {
+#if RECORDER_DIAGNOSTICS
+        using var diagnosticScope = DiagnosticTrace.Step("DesktopOverlayWindow.RenderDynamicOverlays", true);
+#endif
         if (!timelineNow.TryGetCurrent(out var now)) return;
         if (keystrokeRenderer is not null && keystrokeTimeline is not null)
         {
@@ -196,6 +202,9 @@ internal sealed class DesktopOverlayWindow : IDisposable
 
     public void Dispose()
     {
+#if RECORDER_DIAGNOSTICS
+        using var diagnosticScope = DiagnosticTrace.Step("DesktopOverlayWindow.Dispose", false);
+#endif
         if (disposed) return;
         disposed = true;
         timer.Stop();
@@ -257,6 +266,9 @@ internal sealed class DesktopOverlayWindow : IDisposable
 
         public void Update(BitmapSource bitmap, Rect localBounds, double opacity, Rect? hostBounds = null)
         {
+#if RECORDER_DIAGNOSTICS
+        using var diagnosticScope = DiagnosticTrace.Step("DesktopOverlayWindow.Update", true);
+#endif
             if (disposed) return;
             var host = hostBounds ?? localBounds;
             var left = Math.Max(0, (int)Math.Floor(host.Left));
@@ -299,6 +311,9 @@ internal sealed class DesktopOverlayWindow : IDisposable
 
         public void Dispose()
         {
+#if RECORDER_DIAGNOSTICS
+        using var diagnosticScope = DiagnosticTrace.Step("DesktopOverlayWindow.Dispose", false);
+#endif
             if (disposed) return;
             disposed = true;
             window.Close();

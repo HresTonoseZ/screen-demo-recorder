@@ -32,12 +32,18 @@ internal sealed class FfmpegLosslessEncoder : IAsyncDisposable
         });
         process = new Process { StartInfo = CreateStartInfo(executablePath, outputPath, width, height, frameRate) };
         if (!process.Start()) throw new InvalidOperationException("FFmpeg did not start.");
+#if RECORDER_DIAGNOSTICS
+        DiagnosticTrace.Write("FFmpeg.FFV1 started pid=" + process.Id);
+#endif
         errors = process.StandardError.ReadToEndAsync();
         worker = WriteFramesAsync();
     }
 
     public async ValueTask WriteAsync(CpuVideoFrame frame, CancellationToken cancellationToken = default)
     {
+#if RECORDER_DIAGNOSTICS
+        using var diagnosticScope = DiagnosticTrace.Step("FFmpeg.FFV1.WriteAsync", true);
+#endif
         ArgumentNullException.ThrowIfNull(frame);
         try
         {
@@ -53,14 +59,25 @@ internal sealed class FfmpegLosslessEncoder : IAsyncDisposable
 
     public async Task CompleteAsync(CancellationToken cancellationToken = default)
     {
+#if RECORDER_DIAGNOSTICS
+        using var diagnosticScope = DiagnosticTrace.Step("FFmpeg.FFV1.CompleteAsync", false);
+#endif
         if (completed) return;
         completed = true;
         frames.Writer.TryComplete();
         try
         {
+#if RECORDER_DIAGNOSTICS
+            using (DiagnosticTrace.Step("FFmpeg.FFV1.WaitWriter", false)) { await worker.ConfigureAwait(false); }
+            using (DiagnosticTrace.Step("FFmpeg.FFV1.WaitExit", false)) { await process.WaitForExitAsync(cancellationToken).ConfigureAwait(false); }
+#else
             await worker.ConfigureAwait(false);
             await process.WaitForExitAsync(cancellationToken).ConfigureAwait(false);
+#endif
             var diagnostics = await errors.ConfigureAwait(false);
+#if RECORDER_DIAGNOSTICS
+            DiagnosticTrace.Write($"FFmpeg.FFV1 exit={process.ExitCode}; stderr={diagnostics}");
+#endif
             if (process.ExitCode != 0)
                 throw new InvalidOperationException($"FFmpeg lossless encoding failed with exit code {process.ExitCode}: {LastLines(diagnostics)}");
         }
@@ -73,6 +90,9 @@ internal sealed class FfmpegLosslessEncoder : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
+#if RECORDER_DIAGNOSTICS
+        using var diagnosticScope = DiagnosticTrace.Step("FFmpeg.FFV1.DisposeAsync", false);
+#endif
         try
         {
             if (!completed)
@@ -123,7 +143,11 @@ internal sealed class FfmpegLosslessEncoder : IAsyncDisposable
             {
                 using (frame)
                 {
+#if RECORDER_DIAGNOSTICS
+                    using (DiagnosticTrace.Step("FFmpeg.FFV1.PipeWrite", true)) { await process.StandardInput.BaseStream.WriteAsync(frame.Pixels).ConfigureAwait(false); }
+#else
                     await process.StandardInput.BaseStream.WriteAsync(frame.Pixels).ConfigureAwait(false);
+#endif
                 }
             }
             await process.StandardInput.BaseStream.FlushAsync().ConfigureAwait(false);
@@ -131,6 +155,9 @@ internal sealed class FfmpegLosslessEncoder : IAsyncDisposable
         }
         catch (Exception error)
         {
+#if RECORDER_DIAGNOSTICS
+            DiagnosticTrace.Error("Capture/FfmpegLosslessEncoder.cs", error);
+#endif
             frames.Writer.TryComplete(error);
             if (!process.HasExited) process.Kill(true);
             throw;

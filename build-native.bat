@@ -70,7 +70,7 @@ echo Preparing a clean output folder...
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\prepare-native-output.ps1" -OutputDirectory "%~dp0dist\native-preview"
 set "BUILD_EXIT=%ERRORLEVEL%"
 if "%BUILD_EXIT%"=="0" (
-    "%DOTNET_EXE%" publish "native\src\ScreenDemoRecorder\ScreenDemoRecorder.csproj" -c Release -r win-x64 --self-contained true -p:PublishSingleFile=false -o "dist\native-preview" --nologo --disable-build-servers
+    "%DOTNET_EXE%" publish "native\src\ScreenDemoRecorder\ScreenDemoRecorder.csproj" -c Release -r win-x64 --self-contained true -p:RecorderDiagnostics=false -p:PublishSingleFile=false -o "dist\native-preview" --nologo --disable-build-servers
     set "BUILD_EXIT=!ERRORLEVEL!"
 )
 call :shutdown_build_servers

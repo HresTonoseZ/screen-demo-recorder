@@ -87,6 +87,9 @@ internal sealed class CpuRecordingSession
 
     public void TogglePause()
     {
+#if RECORDER_DIAGNOSTICS
+        using var diagnosticScope = DiagnosticTrace.Step("Session.TogglePause", false);
+#endif
         RecordingEventKind kind;
         lock (sync)
         {
@@ -107,6 +110,9 @@ internal sealed class CpuRecordingSession
 
     public void Stop(bool discard = false)
     {
+#if RECORDER_DIAGNOSTICS
+        using var diagnosticScope = DiagnosticTrace.Step("Session.Stop", false);
+#endif
         lock (sync)
         {
             if (finished) return;
@@ -134,6 +140,9 @@ internal sealed class CpuRecordingSession
 
     private async Task<string?> RunAsync()
     {
+#if RECORDER_DIAGNOSTICS
+        using var diagnosticScope = DiagnosticTrace.Step("Session.RunAsync", false);
+#endif
         RecordingSessionStore? session = null;
         RecordingOutput? output = null;
         RecordingEventJournal? journal = null;
@@ -159,13 +168,20 @@ internal sealed class CpuRecordingSession
             var started = false;
             if (startup != cleanRecording.Completion && await cleanRecording.Ready.ConfigureAwait(false))
             {
+#if RECORDER_DIAGNOSTICS
+                using (DiagnosticTrace.Step("Session.StartInputHooks", false)) { await StartInputCaptureAsync().ConfigureAwait(false); }
+#else
                 await StartInputCaptureAsync().ConfigureAwait(false);
+#endif
                 lock (sync)
                 {
                     if (!stopped)
                     {
                         acceptsInput = true;
                         stage = CpuRecordingStage.Capturing;
+#if RECORDER_DIAGNOSTICS
+                        DiagnosticTrace.Write("SESSION capture ready");
+#endif
                         ready.TrySetResult(true);
                         started = true;
                     }
@@ -173,12 +189,25 @@ internal sealed class CpuRecordingSession
             }
             if (!started) cleanRecording.Stop();
             var durationLimit = EnforceDurationLimitAsync(cleanRecording);
+#if RECORDER_DIAGNOSTICS
+            using (DiagnosticTrace.Step("Session.WaitCaptureCompletion", false)) { await cleanRecording.Completion.ConfigureAwait(false); }
+#else
             await cleanRecording.Completion.ConfigureAwait(false);
+#endif
             await durationLimit.ConfigureAwait(false);
+#if RECORDER_DIAGNOSTICS
+            using (DiagnosticTrace.Step("Session.StopInputHooks", false)) { await StopInputCaptureAsync().ConfigureAwait(false); }
+#else
             await StopInputCaptureAsync().ConfigureAwait(false);
+#endif
             pendingEvents.Writer.TryComplete();
+#if RECORDER_DIAGNOSTICS
+            using (DiagnosticTrace.Step("Session.WaitJournal", false)) { await journalWorker.ConfigureAwait(false); }
+            using (DiagnosticTrace.Step("Session.CloseJournal", false)) { await journal.DisposeAsync().ConfigureAwait(false); }
+#else
             await journalWorker.ConfigureAwait(false);
             await journal.DisposeAsync().ConfigureAwait(false);
+#endif
             journal = null;
             if (!started)
             {
@@ -195,6 +224,9 @@ internal sealed class CpuRecordingSession
 
             var renderPath = Path.Combine(session.DirectoryPath, "composed.mp4");
             stage = CpuRecordingStage.Rendering;
+#if RECORDER_DIAGNOSTICS
+            DiagnosticTrace.Write("SESSION offline rendering");
+#endif
             renderCancellation.Token.ThrowIfCancellationRequested();
             var outputPlan = Mp4OutputPlan.Create(area.Width, area.Height,
                 profile.Output.Format == OutputFormat.Mp4 ? profile.Output.Mp4Width : 0);
@@ -206,11 +238,17 @@ internal sealed class CpuRecordingSession
                 renderCancellation.Token).ConfigureAwait(false);
             output = new RecordingOutput(profile.Output,
                 profile.Overlays.Label.Lines.FirstOrDefault(line => line.Enabled)?.Text ?? "Recording");
+#if RECORDER_DIAGNOSTICS
+            DiagnosticTrace.Write("SESSION publishing MP4");
+#endif
             var temporaryOutput = output.PrepareForExternalWriter();
             File.Move(renderPath, temporaryOutput);
             var destination = output.Commit();
             RemoveSession(session.DirectoryPath);
             stage = CpuRecordingStage.Completed;
+#if RECORDER_DIAGNOSTICS
+            DiagnosticTrace.Write("SESSION MP4 saved");
+#endif
             return destination;
         }
         catch (OperationCanceledException) when (renderCancelled)
@@ -221,6 +259,9 @@ internal sealed class CpuRecordingSession
         }
         catch (Exception error)
         {
+#if RECORDER_DIAGNOSTICS
+            DiagnosticTrace.Error("Capture/CpuRecordingSession.cs", error);
+#endif
             if (discarded)
             {
                 if (session is not null) RemoveSession(session.DirectoryPath);
@@ -254,6 +295,9 @@ internal sealed class CpuRecordingSession
 
     private async Task StartInputCaptureAsync()
     {
+#if RECORDER_DIAGNOSTICS
+        using var diagnosticScope = DiagnosticTrace.Step("Session.StartInputCaptureAsync", false);
+#endif
         if (overlays.Keystrokes is not null || profile.Overlays.Desktop.ShowKeystrokes)
         {
             keyboard = new KeyboardCapture(OnKeyPressed);
@@ -268,6 +312,9 @@ internal sealed class CpuRecordingSession
 
     private async Task StopInputCaptureAsync()
     {
+#if RECORDER_DIAGNOSTICS
+        using var diagnosticScope = DiagnosticTrace.Step("Session.StopInputCaptureAsync", false);
+#endif
         var activeKeyboard = Interlocked.Exchange(ref keyboard, null);
         var activeMouse = Interlocked.Exchange(ref mouse, null);
         if (activeKeyboard is not null)
