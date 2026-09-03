@@ -11,7 +11,6 @@
     <Version>1.0.2</Version>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <FfmpegRuntimeDirectory>$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)\..\..\vendor\ffmpeg'))</FfmpegRuntimeDirectory>
-    <FfmpegAcquireScript>$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)\..\..\tools\Acquire-Ffmpeg.ps1'))</FfmpegAcquireScript>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Vortice.Direct3D11" Version="3.8.3" />
@@ -19,24 +18,19 @@
     <PackageReference Include="Vortice.Direct2D1" Version="3.8.3" />
     <PackageReference Include="Vortice.MediaFoundation" Version="3.8.3" />
     <ProjectReference Include="..\ScreenDemoRecorder.Core\ScreenDemoRecorder.Core.csproj" />
+    <Content Include="$(FfmpegRuntimeDirectory)\*"
+             Exclude="$(FfmpegRuntimeDirectory)\ffplay.exe">
+      <Link>ffmpeg\%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
   </ItemGroup>
-  <Target Name="AcquireVerifiedFfmpeg" BeforeTargets="PrepareForBuild" Condition="'$(DesignTimeBuild)' != 'true'">
-    <Exec Command="powershell.exe -NoProfile -ExecutionPolicy Bypass -File &quot;$(FfmpegAcquireScript)&quot;" />
-    <Error Condition="!Exists('$(FfmpegRuntimeDirectory)\ffmpeg.exe')"
-           Text="The verified FFmpeg runtime was not acquired." />
-  </Target>
-  <Target Name="CopyFfmpegToBuildOutput" AfterTargets="Build" DependsOnTargets="AcquireVerifiedFfmpeg">
+  <Target Name="ValidateVendoredFfmpeg" BeforeTargets="PrepareForBuild" Condition="'$(DesignTimeBuild)' != 'true'">
     <ItemGroup>
-      <_FfmpegBuildFile Include="$(FfmpegRuntimeDirectory)\*" />
+      <_RequiredFfmpegFile Include="ffmpeg.exe;ffprobe.exe;avcodec-63.dll;avdevice-63.dll;avfilter-12.dll;avformat-63.dll;avutil-61.dll;swresample-7.dll;swscale-10.dll;BUILD.txt;COPYING.LGPLv2.1.txt" />
+      <_MissingFfmpegFile Include="@(_RequiredFfmpegFile)" Condition="!Exists('$(FfmpegRuntimeDirectory)\%(Identity)')" />
     </ItemGroup>
-    <Copy SourceFiles="@(_FfmpegBuildFile)" DestinationFolder="$(TargetDir)ffmpeg"
-          SkipUnchangedFiles="true" />
-  </Target>
-  <Target Name="CopyFfmpegToPublishOutput" AfterTargets="Publish" DependsOnTargets="AcquireVerifiedFfmpeg">
-    <ItemGroup>
-      <_FfmpegPublishFile Include="$(FfmpegRuntimeDirectory)\*" />
-    </ItemGroup>
-    <Copy SourceFiles="@(_FfmpegPublishFile)" DestinationFolder="$(PublishDir)ffmpeg"
-          SkipUnchangedFiles="true" />
+    <Error Condition="'@(_MissingFfmpegFile)' != ''"
+           Text="The local FFmpeg runtime is incomplete. Missing: @(_MissingFfmpegFile, ', ')." />
   </Target>
 </Project>

@@ -1,0 +1,4 @@
+﻿Release: autobuild-2026-09-01-13-13
+Archive: ffmpeg-N-126386-gc27482a18d-win64-lgpl-shared.zip
+SHA-256: 4c5abe4d63748166de2c917074fcbacf52276b0cd2542ebf59b09aaa98f547f6
+Source: https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-09-01-13-13/ffmpeg-N-126386-gc27482a18d-win64-lgpl-shared.zip

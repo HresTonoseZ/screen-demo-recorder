@@ -8,7 +8,7 @@ dist/
 build/
 **/bin/
 **/obj/
-native/vendor/ffmpeg/
+native/vendor/ffmpeg/ffplay.exe
 .vs/
 *.user
 *.zip

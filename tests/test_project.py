@@ -49,6 +49,21 @@ class ProjectTests(unittest.TestCase):
     def test_smoke_test_argument_is_available_for_packaged_runtime_checks(self):
         self.assertTrue(parse_args(["--smoke-test"]).smoke_test)
 
+    def test_native_build_uses_the_vendored_ffmpeg_runtime(self):
+        runtime = ROOT / "native" / "vendor" / "ffmpeg"
+        required = {
+            "ffmpeg.exe", "ffprobe.exe", "avcodec-63.dll", "avdevice-63.dll",
+            "avfilter-12.dll", "avformat-63.dll", "avutil-61.dll",
+            "swresample-7.dll", "swscale-10.dll", "BUILD.txt",
+            "COPYING.LGPLv2.1.txt",
+        }
+        self.assertEqual(required, {path.name for path in runtime.iterdir() if path.name != "ffplay.exe"})
+        self.assertFalse((ROOT / "native" / "tools" / "Acquire-Ffmpeg.ps1").exists())
+        project = (ROOT / "native" / "src" / "ScreenDemoRecorder" / "ScreenDemoRecorder.csproj").read_text(encoding="utf-8")
+        self.assertIn("ValidateVendoredFfmpeg", project)
+        self.assertNotIn("Invoke-WebRequest", project)
+        self.assertNotIn("Acquire-Ffmpeg", project)
+
 
 if __name__ == "__main__":
     unittest.main()
