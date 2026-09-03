@@ -39,11 +39,7 @@ try {
     if ($cpuPipeline.ExitCode -ne 0) { throw "Native CPU pipeline checks failed. See $cpuPipelinePath\failure.txt" }
     Get-Content -LiteralPath (Join-Path $cpuPipelinePath 'result.txt')
     if ($VerifyRecording) {
-        $recordingPath = Join-Path $PSScriptRoot ('build\native-recording-' + [Guid]::NewGuid().ToString('N'))
-        $check = Start-Process -FilePath $exe -ArgumentList @('--recording-smoke-test', ('"' + $recordingPath + '"')) -WindowStyle Hidden -PassThru -Wait
-        if ($check.ExitCode -ne 0) { throw "Native recording checks failed. See $recordingPath\failure.txt" }
-        Get-Content -LiteralPath (Join-Path $recordingPath 'result.txt')
-        Get-Content -LiteralPath (Join-Path $recordingPath 'gif-result.txt')
+        Get-Content -LiteralPath (Join-Path $cpuPipelinePath 'gif-result.txt')
     }
     if ($BenchmarkStartup) {
         $benchmarkPath = Join-Path $PSScriptRoot ('build\native-startup-' + [Guid]::NewGuid().ToString('N'))

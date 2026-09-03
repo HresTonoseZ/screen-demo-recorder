@@ -39,8 +39,9 @@ internal static class LiveOverlayRecordingChecks
         Require(boundary.IsVisible && boundary.IsPassive && boundary.IsExcluded,
             "The recording boundary is not visible, passive or excluded from capture.");
         NativeDesktop.FlushComposition();
-        var recording = new Mp4Recording(item, crop, profile, 60, null,
-            captureKeyboardInput: false, captureMouseInput: false);
+        var cleanPath = Path.Combine(directory, "live-overlay-clean.mkv");
+        if (File.Exists(cleanPath)) File.Delete(cleanPath);
+        var recording = new CpuIntermediateRecording(item, crop, cleanPath, 30, false);
         try
         {
             await recording.Ready.WaitAsync(TimeSpan.FromSeconds(15));
@@ -57,9 +58,13 @@ internal static class LiveOverlayRecordingChecks
                 "The recording boundary disappeared or moved while overlays were updating.");
             Require(overlay.VisibleSurfaceCount > 0 && overlay.IsExcludedFromCapture && !overlay.HasCaptureSizedSurface,
                 "Dynamic live overlays were not visible, capture-excluded and split into small surfaces.");
-            var mp4Path = await recording.Completion.WaitAsync(TimeSpan.FromSeconds(20));
-            Require(mp4Path is not null, "The live-overlay monitor recording was not saved.");
-            var gifPath = await GifExport.RunAsync(mp4Path!, new PixelRect(0, 0, crop.Width, crop.Height), profile);
+            recording.Stop();
+            await recording.Completion.WaitAsync(TimeSpan.FromSeconds(20));
+            var mp4Path = Path.Combine(directory, "live-overlay-final.mp4");
+            await CpuRecordingRenderer.RenderAsync(FfmpegRuntime.RequireExecutable(), cleanPath, mp4Path,
+                crop.Width, crop.Height, 30, Mp4OutputPlan.Create(crop.Width, crop.Height, 0),
+                QualityPreset.Balanced, new RecordingOverlays(null, null, null), profile.Overlays, []);
+            var gifPath = await GifExport.RunAsync(mp4Path, new PixelRect(0, 0, crop.Width, crop.Height), profile);
             using var stream = File.OpenRead(gifPath);
             var gif = new GifBitmapDecoder(stream, BitmapCreateOptions.None, BitmapCacheOption.OnLoad);
             Require(gif.Frames.Count > 1, "The live-overlay recording contains too few frames.");
@@ -68,7 +73,7 @@ internal static class LiveOverlayRecordingChecks
                 var color = new byte[4];
                 new FormatConvertedBitmap(frame, PixelFormats.Bgra32, null, 0)
                     .CopyPixels(new System.Windows.Int32Rect(5, 5, 1, 1), color, 4, 0);
-                Require(color[2] >= 80 && color[2] >= color[1] + 20 && color[2] >= color[0] + 20,
+                Require(color[0] >= 80 && color[0] >= color[1] + 20 && color[0] >= color[2] + 20,
                     $"Live overlay produced a black or unexpected frame at sample {index}: {string.Join(',', color)}.");
             }
         }

@@ -147,7 +147,8 @@ the source instead of corrected separately by each consumer.
 - The offline path now decodes FFV1 to BGRA, composites existing label/key/click rasters with a managed premultiplied-alpha blender, applies bounded separable label blur, and creates H.264 MP4 with the LGPL OpenH264 CPU encoder.
 - Normal MP4/GIF recording now uses one CPU session owner for clean capture, the recoverable journal, live event fan-out, offline composition, output resizing, and final OpenH264 encoding.
 - Frame-accurate render progress, cancellation that retains the clean session, and startup recovery of MP4/GIF output are implemented.
-- Removal of the legacy GPU recording compositor and the cross-computer endurance matrix remain pending.
+- The legacy GPU recording compositor, scaler, Media Transcoding path, and architecture-specific tests have been removed.
+- The cross-computer endurance matrix remains pending.
 
 ## Delivery phases
 
@@ -205,6 +206,9 @@ Exit criterion: normal MP4/GIF workflows require no manual intermediate-file
 management and cancellation is recoverable.
 
 ### Phase 6: Remove the old path
+
+Status: complete. The published verification now exercises the CPU path for both
+MP4 and GIF, including capture-excluded live overlays.
 
 - Delete the Direct2D recording compositor and GPU scaler after parity passes.
 - Remove obsolete GPU synchronization code and tests that assert the retired

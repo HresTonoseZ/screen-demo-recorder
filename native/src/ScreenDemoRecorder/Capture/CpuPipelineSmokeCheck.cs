@@ -84,6 +84,7 @@ internal static class CpuPipelineSmokeCheck
         await CheckRecoveryAsync(videoPath, directory, width, height, frameCount);
 
         var captureResult = await CheckWgcCaptureAsync(ffmpeg, directory);
+        await GifExportChecks.RunAsync(captureResult.ProductPath, captureResult.ProductArea, directory);
         await File.WriteAllTextAsync(Path.Combine(directory, "result.txt"),
             $"PASS: GPU staging readback, CPU overlay blending, cancellation/recovery, {frameCount} generated FFV1/OpenH264 frames, " +
             $"{captureResult.FrameCount} real WGC frames, and the normal CPU recording session with shared live/journal events decoded successfully.\n" +
@@ -132,7 +133,8 @@ internal static class CpuPipelineSmokeCheck
         }
     }
 
-    private static async Task<(string Path, int FrameCount)> CheckWgcCaptureAsync(string ffmpeg, string directory)
+    private static async Task<(string Path, int FrameCount, string ProductPath, PixelRect ProductArea)> CheckWgcCaptureAsync(
+        string ffmpeg, string directory)
     {
         var surface = new Border { Background = Brushes.Lime };
         var target = new Window
@@ -166,6 +168,12 @@ internal static class CpuPipelineSmokeCheck
                 WindowProcessName = window.ProcessName,
                 WindowClassName = window.ClassName,
             }, [], window);
+            Require(capture.Area == new PixelRect(0, 0, capture.Item.Size.Width, capture.Item.Size.Height),
+                "Window capture did not select the complete window surface.");
+            Require(capture.MapScreenPoint?.Invoke(new PixelPoint(window.Bounds.X + 12, window.Bounds.Y + 12)) is
+                { X: >= 0, Y: >= 0 }, "Window click coordinates were not mapped into the captured surface.");
+            Require(capture.MapScreenPoint?.Invoke(new PixelPoint(window.Bounds.X - 20, window.Bounds.Y - 20)) is null,
+                "A click outside the captured window was accepted.");
             var path = Path.Combine(directory, "cpu-wgc-clean.mkv");
             if (File.Exists(path)) File.Delete(path);
             recording = new CpuIntermediateRecording(capture.Item, capture.Area, path, 20, false, capture.Validate);
@@ -253,7 +261,12 @@ internal static class CpuPipelineSmokeCheck
                 if (productPixels[offset + 1] > 20 || productPixels[offset + 2] > 20) overlayPixels++;
             Require(overlayPixels > 500,
                 "The product CPU session did not render its offline overlays into the final MP4.");
-            return (path, pixels.Length / frameSize);
+            var display = NativeDesktop.Displays().First(candidate =>
+                window.Bounds.X >= candidate.Bounds.X && window.Bounds.X < candidate.Bounds.Right &&
+                window.Bounds.Y >= candidate.Bounds.Y && window.Bounds.Y < candidate.Bounds.Bottom);
+            await LiveOverlayRecordingChecks.RunAsync(display, window, directory);
+            return (path, pixels.Length / frameSize, productPath!,
+                new PixelRect(0, 0, productPlan.Width, productPlan.Height));
         }
         finally
         {

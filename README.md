@@ -10,7 +10,7 @@ display, region, or individual window to MP4 and exports GIF with labels and
 optional pressed-key and mouse-click overlays. It can preview the selected area
 boundary, label, pressed keys, and click highlights on
 the desktop between recordings without intercepting input. It includes
-configurable global shortcuts, pause/resume, countdown, MP4/GIF resolution presets, automatic encoder fallback,
+configurable global shortcuts, pause/resume, countdown, MP4/GIF resolution presets, deterministic CPU encoding,
 export progress/cancellation, safe saving, profile transfer, recent recordings,
 themes and notification-area behavior. The feature list below describes the Python
 version; see [native progress](docs/NATIVE_PROGRESS.md) for the current scope.
@@ -206,7 +206,7 @@ Aspect ratio is preserved and smaller captures are not enlarged. The legacy badg
 is intentionally omitted from the native profile schema. Label rows can be selected and edited directly on the exact-size
 canvas; container colors, padding, spacing, corners, border and shadow remain in
 a collapsed advanced section, while each row exposes exact text, outline and shadow
-controls. GPU background blur is available for glass labels. Pressed-key opacity and
+controls. Background blur is available for glass labels. Pressed-key opacity and
 timing, plus exact left/right click colors, stay in their own collapsed Advanced sections.
 Per-Monitor V2 coordinates are kept in physical pixels; the build checks every
 connected display against Windows Graphics Capture and verifies synthetic

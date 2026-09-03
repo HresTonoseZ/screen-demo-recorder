@@ -39,7 +39,6 @@ public partial class App : Application
         ApplicationThemeManager.Initialize();
         ShutdownMode = ShutdownMode.OnExplicitShutdown;
         string? smokeDirectory = e.Args is ["--smoke-test", var output] ? Path.GetFullPath(output) : null;
-        string? recordingCheckDirectory = e.Args is ["--recording-smoke-test", var recordingOutput] ? Path.GetFullPath(recordingOutput) : null;
         string? cpuPipelineCheckDirectory = e.Args is ["--cpu-pipeline-smoke-test", var cpuPipelineOutput] ? Path.GetFullPath(cpuPipelineOutput) : null;
         string? startupProbeDirectory = e.Args is ["--startup-probe", var startupOutput] ? Path.GetFullPath(startupOutput) : null;
         try
@@ -47,12 +46,6 @@ public partial class App : Application
             if (cpuPipelineCheckDirectory is not null)
             {
                 await CpuPipelineSmokeCheck.RunAsync(cpuPipelineCheckDirectory);
-                Shutdown(0);
-                return;
-            }
-            if (recordingCheckDirectory is not null)
-            {
-                await RecordingSmokeCheck.RunAsync(recordingCheckDirectory);
                 Shutdown(0);
                 return;
             }
@@ -139,10 +132,6 @@ public partial class App : Application
                 main.FormatComboBox.SelectedIndex = 1;
                 await RenderAsync(main, Path.Combine(smokeDirectory, "main-gif.png"), 414, 722);
                 main.FormatComboBox.SelectedIndex = 0;
-                var fallback = await EncoderFallback.PrepareAsync(
-                    hardware => hardware ? Task.FromException<int>(new InvalidOperationException("hardware unavailable")) : Task.FromResult(7),
-                    value => value == 7 ? null : "unexpected result");
-                if (!fallback.UsedSoftware || fallback.Value != 7) throw new InvalidOperationException("Software encoder fallback was not selected.");
                 var editorWindow = new DesktopWindowInfo(new nint(101), 1001, "Example Document — Editor", "editor", "EditorWindow",
                     new PixelRect(80, 60, 1280, 720), false);
                 var minimizedWindow = new DesktopWindowInfo(new nint(102), 1002, "Reference — Browser", "browser", "BrowserWindow",
@@ -282,7 +271,7 @@ public partial class App : Application
                     throw new InvalidOperationException("WPF and Win32 disagree about the region-selector DPI.");
                 selector.Close(); editor.Close(); main.Close();
                 await File.WriteAllTextAsync(Path.Combine(smokeDirectory, "result.txt"),
-                    $"PASS: Per-Monitor V2/WPF-Win32 DPI agreement on every connected display, exact physical selector placement, WPF main window, recent-recording menu, light/dark theme resources, application behavior, selection appearance and advanced capture settings, notification-area lifecycle, searchable window selector, window-source summary, MP4 preset/custom validation, encoder fallback/recovery UI, GIF preset/custom validation and layout, inline/advanced overlay editor, label background blur and per-row shadows, mouse-click appearance and animation, shortcut assignment, Win32 hotkey registration/conflict/cleanup, stale-message rejection, countdown command routing, overlay rendering, region selector, visible passive boundary and live desktop overlay placement, profile persistence and transfer.\nDisplays: {dpiReport}.\nMain layout ready: {mainReadyMs} ms (in-process smoke check, not cold launch).\n");
+                    $"PASS: Per-Monitor V2/WPF-Win32 DPI agreement on every connected display, exact physical selector placement, WPF main window, recent-recording menu, light/dark theme resources, application behavior, selection appearance and advanced capture settings, notification-area lifecycle, searchable window selector, window-source summary, MP4 preset/custom validation, recording recovery UI, GIF preset/custom validation and layout, inline/advanced overlay editor, label background blur and per-row shadows, mouse-click appearance and animation, shortcut assignment, Win32 hotkey registration/conflict/cleanup, stale-message rejection, countdown command routing, overlay rendering, region selector, visible passive boundary and live desktop overlay placement, profile persistence and transfer.\nDisplays: {dpiReport}.\nMain layout ready: {mainReadyMs} ms (in-process smoke check, not cold launch).\n");
                 Shutdown(0);
                 return;
             }
@@ -365,8 +354,6 @@ public partial class App : Application
         {
             if (cpuPipelineCheckDirectory is not null)
                 await File.WriteAllTextAsync(Path.Combine(cpuPipelineCheckDirectory, "failure.txt"), error.ToString());
-            else if (recordingCheckDirectory is not null)
-                await File.WriteAllTextAsync(Path.Combine(recordingCheckDirectory, "failure.txt"), error.ToString());
             else if (smokeDirectory is not null)
                 await File.WriteAllTextAsync(Path.Combine(smokeDirectory, "failure.txt"), error.ToString());
             else if (startupProbeDirectory is not null)
