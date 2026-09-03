@@ -11,14 +11,29 @@ $repositoryRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'
 $destination = [System.IO.Path]::GetFullPath((Join-Path $repositoryRoot 'native\vendor\ffmpeg'))
 $temporaryRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("screen-demo-recorder-ffmpeg-" + [Guid]::NewGuid().ToString('N'))
 
-$existingBuild = Join-Path $destination 'BUILD.txt'
-if (-not $Force -and (Test-Path -LiteralPath (Join-Path $destination 'ffmpeg.exe')) -and
-    (Test-Path -LiteralPath $existingBuild)) {
-    $buildText = Get-Content -LiteralPath $existingBuild -Raw
-    if ($buildText.Contains("Release: $releaseTag") -and $buildText.Contains("Archive: $archiveName")) {
-        Write-Output "Verified FFmpeg runtime is already installed at $destination"
-        return
+function Get-Sha256([string]$path) {
+    $algorithm = [System.Security.Cryptography.SHA256]::Create()
+    $stream = [System.IO.File]::OpenRead($path)
+    try { return ([System.BitConverter]::ToString($algorithm.ComputeHash($stream))).Replace('-', '').ToLowerInvariant() }
+    finally { $stream.Dispose(); $algorithm.Dispose() }
+}
+
+function Test-InstalledRuntime {
+    $requiredFiles = @('ffmpeg.exe', 'ffprobe.exe', 'BUILD.txt', 'COPYING.LGPLv2.1.txt')
+    foreach ($requiredFile in $requiredFiles) {
+        if (-not (Test-Path -LiteralPath (Join-Path $destination $requiredFile) -PathType Leaf)) { return $false }
     }
+    foreach ($requiredLibrary in @('avcodec-*.dll', 'avdevice-*.dll', 'avfilter-*.dll', 'avformat-*.dll',
+            'avutil-*.dll', 'swresample-*.dll', 'swscale-*.dll')) {
+        if (@(Get-ChildItem -LiteralPath $destination -Filter $requiredLibrary -File).Count -ne 1) { return $false }
+    }
+    $buildText = Get-Content -LiteralPath (Join-Path $destination 'BUILD.txt') -Raw
+    return $buildText.Contains("Release: $releaseTag") -and $buildText.Contains("Archive: $archiveName")
+}
+
+if (-not $Force -and (Test-InstalledRuntime)) {
+    Write-Output "Verified FFmpeg runtime is already installed at $destination"
+    return
 }
 
 try {
@@ -26,7 +41,7 @@ try {
     $checksumsPath = Join-Path $temporaryRoot 'checksums.sha256'
     $archivePath = Join-Path $temporaryRoot $archiveName
     Invoke-WebRequest -Uri "$releaseRoot/checksums.sha256" -OutFile $checksumsPath
-    $actualChecksumsHash = (Get-FileHash -LiteralPath $checksumsPath -Algorithm SHA256).Hash.ToLowerInvariant()
+    $actualChecksumsHash = Get-Sha256 $checksumsPath
     if ($actualChecksumsHash -ne $checksumsHash) {
         throw "The FFmpeg checksum manifest failed verification. Expected $checksumsHash, received $actualChecksumsHash."
     }
@@ -40,7 +55,7 @@ try {
         throw "The verified checksum manifest does not contain the pinned FFmpeg archive hash $archiveHash."
     }
     Invoke-WebRequest -Uri "$releaseRoot/$archiveName" -OutFile $archivePath
-    $actualArchiveHash = (Get-FileHash -LiteralPath $archivePath -Algorithm SHA256).Hash.ToLowerInvariant()
+    $actualArchiveHash = Get-Sha256 $archivePath
     if ($actualArchiveHash -ne $expectedArchiveHash) {
         throw "The FFmpeg archive failed verification. Expected $expectedArchiveHash, received $actualArchiveHash."
     }

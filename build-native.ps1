@@ -25,8 +25,6 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Native solution build failed.' }
     & $DotNet "native\tests\ScreenDemoRecorder.CoreChecks\$verificationBase$Configuration\net10.0\ScreenDemoRecorder.CoreChecks.dll"
     if ($LASTEXITCODE -ne 0) { throw 'Native core checks failed.' }
-    & (Join-Path $PSScriptRoot 'native\tools\Acquire-Ffmpeg.ps1')
-    if ($LASTEXITCODE -ne 0) { throw 'Verified FFmpeg runtime acquisition failed.' }
     & $DotNet publish native\src\ScreenDemoRecorder\ScreenDemoRecorder.csproj -c $Configuration -r win-x64 --self-contained true -p:PublishSingleFile=false -o dist\native-preview --nologo --disable-build-servers
     if ($LASTEXITCODE -ne 0) { throw 'Native publishing failed.' }
     $exe = Join-Path $PSScriptRoot 'dist\native-preview\ScreenDemoRecorder.exe'

@@ -158,7 +158,8 @@ The planned replacement for live GPU recording composition is documented in
 - Native GIF export from the completed MP4, including the same burned-in label
   pressed-key and mouse-click overlays. Media Foundation decodes sequentially; WIC resizes,
   quantizes and writes each frame without accumulating the animation in memory.
-  No Python process or FFmpeg executable is used by the native pipeline.
+  No Python process is used by the native pipeline. Native builds acquire and
+  package a pinned, checksum-verified LGPL FFmpeg runtime for CPU video processing.
 - A compact GIF settings dialog with size and motion presets, Match capture,
   palette and repeat choices, dithering and optional MP4 retention. Editable
   choices accept precise values; Advanced keeps frame sampling, last-frame

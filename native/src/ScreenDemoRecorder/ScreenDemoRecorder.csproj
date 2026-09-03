@@ -10,6 +10,8 @@
     <RootNamespace>ScreenDemoRecorder</RootNamespace>
     <Version>1.0.2</Version>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <FfmpegRuntimeDirectory>$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)\..\..\vendor\ffmpeg'))</FfmpegRuntimeDirectory>
+    <FfmpegAcquireScript>$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)\..\..\tools\Acquire-Ffmpeg.ps1'))</FfmpegAcquireScript>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Vortice.Direct3D11" Version="3.8.3" />
@@ -18,11 +20,23 @@
     <PackageReference Include="Vortice.MediaFoundation" Version="3.8.3" />
     <ProjectReference Include="..\ScreenDemoRecorder.Core\ScreenDemoRecorder.Core.csproj" />
   </ItemGroup>
-  <ItemGroup Condition="Exists('..\..\vendor\ffmpeg\ffmpeg.exe')">
-    <Content Include="..\..\vendor\ffmpeg\**\*">
-      <Link>ffmpeg\%(RecursiveDir)%(Filename)%(Extension)</Link>
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
-    </Content>
-  </ItemGroup>
+  <Target Name="AcquireVerifiedFfmpeg" BeforeTargets="PrepareForBuild" Condition="'$(DesignTimeBuild)' != 'true'">
+    <Exec Command="powershell.exe -NoProfile -ExecutionPolicy Bypass -File &quot;$(FfmpegAcquireScript)&quot;" />
+    <Error Condition="!Exists('$(FfmpegRuntimeDirectory)\ffmpeg.exe')"
+           Text="The verified FFmpeg runtime was not acquired." />
+  </Target>
+  <Target Name="CopyFfmpegToBuildOutput" AfterTargets="Build" DependsOnTargets="AcquireVerifiedFfmpeg">
+    <ItemGroup>
+      <_FfmpegBuildFile Include="$(FfmpegRuntimeDirectory)\*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(_FfmpegBuildFile)" DestinationFolder="$(TargetDir)ffmpeg"
+          SkipUnchangedFiles="true" />
+  </Target>
+  <Target Name="CopyFfmpegToPublishOutput" AfterTargets="Publish" DependsOnTargets="AcquireVerifiedFfmpeg">
+    <ItemGroup>
+      <_FfmpegPublishFile Include="$(FfmpegRuntimeDirectory)\*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(_FfmpegPublishFile)" DestinationFolder="$(PublishDir)ffmpeg"
+          SkipUnchangedFiles="true" />
+  </Target>
 </Project>
