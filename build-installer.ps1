@@ -25,7 +25,7 @@ try {
     [xml]$project = Get-Content -LiteralPath 'native\src\ScreenDemoRecorder\ScreenDemoRecorder.csproj'
     $productVersion = [string]$project.Project.PropertyGroup.Version
     if ($productVersion -notmatch '^\d+\.\d+\.\d+$') { throw "Invalid native product version: $productVersion" }
-    $publishPath = (Resolve-Path -LiteralPath 'dist\native-preview').Path
+    $publishPath = (Resolve-Path -LiteralPath 'dist\screen-demo-recorder').Path
     $payloadPath = Join-Path $PSScriptRoot ('build\native-installer-payload-' + [Guid]::NewGuid().ToString('N') + '\Payload.wxs')
     & (Join-Path $PSScriptRoot 'tools\generate_installer_payload.ps1') -PublishDirectory $publishPath -OutputPath $payloadPath
     [xml]$payload = Get-Content -LiteralPath $payloadPath -Raw

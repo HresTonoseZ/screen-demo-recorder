@@ -11,6 +11,12 @@ $TestDirectory = [IO.Path]::GetFullPath($TestDirectory)
 if (Test-Path -LiteralPath $TestDirectory) { throw 'Use a new test directory so stale results cannot pass checks.' }
 New-Item -ItemType Directory -Path $TestDirectory | Out-Null
 
+function Write-TestStatus([string]$Message) {
+    $line = "$(Get-Date -Format o) $Message"
+    Add-Content -LiteralPath (Join-Path $TestDirectory 'tests.log') -Value $line
+    Write-Host $line
+}
+
 function Stop-TestProcess($Process) {
     if (-not $Process.HasExited) {
         # The PID belongs to the child this test started; kill its encoders as well.
@@ -21,16 +27,23 @@ function Stop-TestProcess($Process) {
 
 function Invoke-AppCheck([string]$Command, [string]$Name, [int]$TimeoutSeconds = 120) {
     $directory = Join-Path $TestDirectory $Name
-    $process = Start-Process -FilePath $Executable -ArgumentList @($Command, ('"' + $directory + '"')) -WindowStyle Hidden -PassThru
+    New-Item -ItemType Directory -Path $directory | Out-Null
+    Write-TestStatus "START: $Name; command=$Command; timeout=$TimeoutSeconds seconds"
+    $process = $null
     try {
+        $process = Start-Process -FilePath $Executable -ArgumentList @($Command, ('"' + $directory + '"')) -WindowStyle Hidden -PassThru `
+            -RedirectStandardOutput (Join-Path $directory 'stdout.log') -RedirectStandardError (Join-Path $directory 'stderr.log')
+        # Retain the handle so Windows PowerShell can read ExitCode after redirected output closes.
+        $null = $process.Handle
         $deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
         while (-not $process.WaitForExit(1000)) {
             if ([DateTime]::UtcNow -gt $deadline) { throw "Test $Name timed out; inspect $directory" }
         }
         if ($process.ExitCode -ne 0) { throw "Test $Name failed with exit code $($process.ExitCode); inspect $directory" }
-        Write-Output "PASS: $Name"
+        Write-TestStatus "PASS: $Name; exit=0"
     }
-    finally { Stop-TestProcess $process; $process.Dispose() }
+    catch { Write-TestStatus "FAIL: $Name; $_"; throw }
+    finally { if ($process) { Stop-TestProcess $process; $process.Dispose() } }
 }
 
 Invoke-AppCheck '--build-flavor-check' 'flavor'
@@ -59,8 +72,13 @@ if ($Diagnostic) {
     }
     Write-Output 'PASS: precise native-call diagnostics in delayed-stage and real recording tests.'
     $forceDirectory = Join-Path $TestDirectory 'forced-stop'
-    $process = Start-Process -FilePath $Executable -ArgumentList @('--diagnostic-force-stop-test', ('"' + $forceDirectory + '"')) -WindowStyle Hidden -PassThru
+    New-Item -ItemType Directory -Path $forceDirectory | Out-Null
+    Write-TestStatus 'START: forced-stop; command=--diagnostic-force-stop-test; timeout=25 seconds; intentional termination expected'
+    $process = $null
     try {
+        $process = Start-Process -FilePath $Executable -ArgumentList @('--diagnostic-force-stop-test', ('"' + $forceDirectory + '"')) -WindowStyle Hidden -PassThru `
+            -RedirectStandardOutput (Join-Path $forceDirectory 'stdout.log') -RedirectStandardError (Join-Path $forceDirectory 'stderr.log')
+        $null = $process.Handle
         $deadline = [DateTime]::UtcNow.AddSeconds(25)
         do {
             if ($process.WaitForExit(250)) { throw 'The forced-stop test exited before the parent terminated it.' }
@@ -70,9 +88,10 @@ if ($Diagnostic) {
         Stop-TestProcess $process
         $persisted = Get-ChildItem "$forceDirectory\diagnostics\*.log" | Get-Content -Raw
         if ($persisted -notmatch 'UI_UNRESPONSIVE' -or $persisted -match 'PROCESS_EXIT') { throw 'Forced-stop log persistence check failed.' }
-        Write-Output 'PASS: diagnostic log survived forced termination.'
+        Write-TestStatus 'PASS: forced-stop; diagnostic log survived forced termination.'
     }
-    finally { Stop-TestProcess $process; $process.Dispose() }
+    catch { Write-TestStatus "FAIL: forced-stop; $_"; throw }
+    finally { if ($process) { Stop-TestProcess $process; $process.Dispose() } }
 }
 elseif (Get-ChildItem -LiteralPath $TestDirectory -Filter 'diagnostics' -Directory -Recurse) {
     throw 'The normal build unexpectedly created diagnostic logs.'

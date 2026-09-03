@@ -181,7 +181,7 @@ The planned replacement for live GPU recording composition is documented in
 
 ```powershell
 .\build-native.ps1
-.\dist\native-preview\ScreenDemoRecorder.exe
+.\dist\screen-demo-recorder\ScreenDemoRecorder.exe
 ```
 
 Use `.\build-native.ps1 -BenchmarkStartup` for five isolated fresh-process
@@ -280,7 +280,7 @@ stops; it can take time at large sizes. Processing memory is bounded by working
 frames rather than total recording duration. GIF palette reduction and the MP4
 intermediate are lossy; GIF is not intended for HDR or archival-quality video.
 
-Keep the entire `native-preview` folder together. The EXE is not a single-file
+Keep the entire `screen-demo-recorder` folder together. The EXE is not a single-file
 distribution; its runtime stays beside it instead of being extracted on launch.
 
 ## Installer

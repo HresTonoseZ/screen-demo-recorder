@@ -217,16 +217,18 @@ whether `origin/main` has a newer commit and asks before applying a safe
 fast-forward update; declining or an unavailable network builds the local copy.
 It then checks for the required .NET SDK and offers to install a private current-user
 copy when needed. Before publishing, it stops build servers, closes only a previous preview
-running from `dist\native-preview`, removes that old output folder completely,
-and creates a clean replacement. Source files, profiles, and recordings are not
-deleted.
+running from `dist\screen-demo-recorder`, removes that old output folder completely,
+and creates a clean replacement. Source files and data outside that output
+folder are not deleted. Move any manually saved data out of the build folder first.
 
 Build and verify the self-contained preview with `.\build-native.ps1`, then run
-`dist\native-preview\ScreenDemoRecorder.exe`. Keep its adjacent files together.
+`dist\screen-demo-recorder\ScreenDemoRecorder.exe`. Keep its adjacent files together.
 For troubleshooting another PC, run `build-diagnostic.bat`. It builds and tests
-a separate logging-enabled version and portable ZIP from the local source,
+a separate logging-enabled version in `dist\screen-demo-recorder-diagnostics` from the local source,
 without changing Git or the normal preview. The normal build has no diagnostic
-watchdog or journal. See [diagnostic builds](docs/DIAGNOSTICS.md) for collecting
+watchdog or journal. No ZIP is created. Each diagnostic run keeps its build console,
+test results, logs and recordings in `diagnostic-reports/<timestamp>` in the repository.
+See [diagnostic builds](docs/DIAGNOSTICS.md) for collecting
 logs, retention limits and automated hang checks.
 The pinned Windows x64 LGPL shared FFmpeg runtime is stored in this repository,
 so native builds never download it from an external host. Every build validates

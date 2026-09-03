@@ -67,10 +67,10 @@ set "PSModuleAnalysisCachePath=%APP_TOOL_DIR%\PowerShell\ModuleAnalysisCache"
 pushd "%~dp0"
 call :shutdown_build_servers
 echo Preparing a clean output folder...
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\prepare-native-output.ps1" -OutputDirectory "%~dp0dist\native-preview"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\prepare-native-output.ps1" -OutputDirectory "%~dp0dist\screen-demo-recorder"
 set "BUILD_EXIT=%ERRORLEVEL%"
 if "%BUILD_EXIT%"=="0" (
-    "%DOTNET_EXE%" publish "native\src\ScreenDemoRecorder\ScreenDemoRecorder.csproj" -c Release -r win-x64 --self-contained true -p:RecorderDiagnostics=false -p:PublishSingleFile=false -o "dist\native-preview" --nologo --disable-build-servers
+    "%DOTNET_EXE%" publish "native\src\ScreenDemoRecorder\ScreenDemoRecorder.csproj" -c Release -r win-x64 --self-contained true -p:RecorderDiagnostics=false -p:PublishSingleFile=false -o "dist\screen-demo-recorder" --nologo --disable-build-servers
     set "BUILD_EXIT=!ERRORLEVEL!"
 )
 call :shutdown_build_servers
@@ -80,14 +80,14 @@ cd /d "%TEMP%"
 echo.
 if not "%BUILD_EXIT%"=="0" (
     echo Build failed with exit code %BUILD_EXIT%.
-    pause
+    if not defined SDR_BUILD_NO_PAUSE pause
     exit /b %BUILD_EXIT%
 )
 
 echo Build completed successfully.
-echo Executable: %~dp0dist\native-preview\ScreenDemoRecorder.exe
+echo Executable: %~dp0dist\screen-demo-recorder\ScreenDemoRecorder.exe
 echo.
-pause
+if not defined SDR_BUILD_NO_PAUSE pause
 exit /b 0
 
 :try_dotnet
@@ -194,5 +194,5 @@ goto :failed
 :failed
 echo.
 cd /d "%TEMP%"
-pause
+if not defined SDR_BUILD_NO_PAUSE pause
 exit /b 1

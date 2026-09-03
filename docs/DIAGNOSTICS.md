@@ -11,23 +11,46 @@ The script builds a self-contained Windows x64 application, runs the core,
 UI, real MP4/GIF recording and diagnostic checks, then creates:
 
 ```text
-dist/native-diagnostic-<timestamp>/ScreenDemoRecorder.exe
-dist/native-diagnostic-<timestamp>.zip
-build/native-diagnostic-<timestamp>/   (test results, not packaged)
+dist/screen-demo-recorder-diagnostics/ScreenDemoRecorder.exe
+diagnostic-reports/<timestamp>/
+    build.log                 (build console, commands, stage announcements, errors)
+    summary.txt               (build stage results and overall success/failure)
+    *.stdout.log              (SDK, compiler, core tests and publish output)
+    *.stderr.log              (error output from those commands)
+    tests/tests.log           (test starts, passes, failures and timeouts)
+    tests/pipeline/           (test MP4/GIF/MKV files and detailed results)
+    tests/*/diagnostics/      (diagnostic logs for each application test)
+    tests/*/stdout.log        (application test console output)
+    tests/*/stderr.log        (application test error output)
 ```
 
-Each invocation uses a new output folder and never overwrites an older build,
-profiles or recordings. Test child processes and their encoders are terminated
+Each invocation replaces the same diagnostic build folder; no ZIP is created.
+The normal build similarly uses `dist/screen-demo-recorder`. Cleanup is restricted
+to these two output paths and refuses linked directories. Move manually saved
+recordings, profiles or runtime logs out of an output folder before rebuilding;
+everything inside that build folder is deleted. Old timestamped build folders
+from previous script versions are not automatically deleted.
+
+Reports use a new timestamped folder on every run and are never cleared by a
+rebuild. Logging starts before SDK discovery, so missing-SDK and compilation
+failures are included. The console announces automatic tests before they run.
+Send the **entire `diagnostic-reports/<timestamp>` folder** for a failed build or
+test, not the application folder. A RUNNING/START entry without a final PASS/FAIL
+can indicate that the process was interrupted. Reports may contain screenshots,
+test recordings and local paths; review them before sharing. Nothing is uploaded.
+
+Test child processes and their encoders are terminated
 on failure or timeout. No application is left running after successful tests.
 The BAT releases its working directory before its final pause.
 
 ## Reproduce a problem on another PC
 
-1. Extract the entire ZIP into a writable local folder; keep all adjacent files.
+1. Copy the entire `dist/screen-demo-recorder-diagnostics` folder to a writable
+   local folder on the other PC; keep all adjacent files. No installation is needed.
 2. Close other copies of the recorder. Run `ScreenDemoRecorder.exe`; its main
    window title contains `[Diagnostic]`.
 3. Use the same capture, export and live-presentation settings that failed.
-   A newly extracted copy may have different settings; check them before testing.
+   A fresh build may have different settings; check them before testing.
 4. If the window hangs, wait at least 15 seconds before ending the application
    in Task Manager. Avoid restarting the computer before collecting the logs.
 5. Send the files for the latest run from `diagnostics` beside the EXE. If the
@@ -91,3 +114,7 @@ The deliberate stalls are entered only with explicit test commands
 `--diagnostic-force-stop-test <output-folder>`. They never run during normal
 interactive recording. Verification on a development PC does not establish
 that a failure on another Windows installation has been fixed.
+
+After a successful build, `scripts/test-diagnostic-report.ps1 -ReportDirectory
+<report-folder>` verifies that its console, stage results, per-test logs and
+MP4/GIF/MKV artifacts were all retained in the report.

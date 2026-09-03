@@ -3,7 +3,7 @@
     <InstallerPlatform>x64</InstallerPlatform>
     <Cultures>en-US</Cultures>
     <ProductVersion Condition="'$(ProductVersion)' == ''">1.0.2</ProductVersion>
-    <PublishDirectory Condition="'$(PublishDirectory)' == ''">$(MSBuildThisFileDirectory)..\..\dist\native-preview</PublishDirectory>
+    <PublishDirectory Condition="'$(PublishDirectory)' == ''">$(MSBuildThisFileDirectory)..\..\dist\screen-demo-recorder</PublishDirectory>
     <OutputName>ScreenDemoRecorder-$(ProductVersion)-x64</OutputName>
     <DefineConstants>ProductVersion=$(ProductVersion)</DefineConstants>
     <!-- ICE91 is expected for a package that is deliberately and exclusively per-user. -->

@@ -6,6 +6,7 @@ __pycache__/
 .nuget-packages/
 dist/
 build/
+diagnostic-reports/
 **/bin/
 **/obj/
 native/vendor/ffmpeg/ffplay.exe
