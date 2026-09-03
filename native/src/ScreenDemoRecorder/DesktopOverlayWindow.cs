@@ -22,7 +22,7 @@ internal sealed class DesktopOverlayWindow : IDisposable
     private readonly KeystrokeTimeline? keystrokeTimeline;
     private readonly ClickTimeline? clickTimeline;
     private readonly KeystrokeFilter? keystrokeFilter;
-    private readonly Func<TimeSpan>? timelineNow;
+    private readonly LiveOverlayTimeSource timelineNow;
     private readonly Stopwatch clock = Stopwatch.StartNew();
     private readonly Dispatcher dispatcher = Dispatcher.CurrentDispatcher;
     private readonly DispatcherTimer timer;
@@ -34,7 +34,7 @@ internal sealed class DesktopOverlayWindow : IDisposable
         bool captureInput = true, Func<TimeSpan>? recordingTime = null)
     {
         screenBounds = bounds;
-        timelineNow = recordingTime;
+        timelineNow = new LiveOverlayTimeSource(recordingTime ?? (() => clock.Elapsed));
         timer = new DispatcherTimer(DispatcherPriority.Render)
         {
             Interval = TimeSpan.FromMilliseconds(16),
@@ -147,7 +147,7 @@ internal sealed class DesktopOverlayWindow : IDisposable
 
     private void RenderDynamicOverlays(object? sender, EventArgs e)
     {
-        var now = timelineNow?.Invoke() ?? clock.Elapsed;
+        if (!timelineNow.TryGetCurrent(out var now)) return;
         if (keystrokeRenderer is not null && keystrokeTimeline is not null)
         {
             var placements = keystrokeRenderer.Layout(keystrokeTimeline.VisibleAt(now), screenBounds.Width, screenBounds.Height);
@@ -200,6 +200,7 @@ internal sealed class DesktopOverlayWindow : IDisposable
         disposed = true;
         timer.Stop();
         timer.Tick -= RenderDynamicOverlays;
+        timelineNow.Dispose();
         keyboard?.RequestStop();
         keyboard = null;
         mouse?.RequestStop();

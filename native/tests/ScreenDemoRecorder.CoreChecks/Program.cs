@@ -32,6 +32,7 @@ try
     KeystrokeChecks.Run();
     ClickChecks.Run();
     HotkeyGestureChecks.Run();
+    LiveOverlayLifecycleChecks.Run();
     CheckRecordingOutput(Path.Combine(testRoot, "recordings"));
     await RecordingSessionChecks.RunAsync(Path.Combine(testRoot, "sessions"));
     GifChecks.Run(Path.Combine(testRoot, "gifs"));

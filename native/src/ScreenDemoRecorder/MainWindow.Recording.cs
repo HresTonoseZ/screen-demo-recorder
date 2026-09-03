@@ -111,6 +111,8 @@ public partial class MainWindow
             var completedRecording = recording;
             var path = await completedRecording.Completion;
             timer.Stop();
+            boundary?.Dispose(); boundary = null;
+            desktopOverlay?.Dispose(); desktopOverlay = null;
             recording = null;
             PauseButton.Visibility = Visibility.Collapsed;
             RefreshBoundary();
