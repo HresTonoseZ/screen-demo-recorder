@@ -27,6 +27,9 @@ internal static class GraphicsInterop
         finally { Marshal.Release(pointer); }
     }
 
+    public static void Release(GraphicsCaptureItem item) =>
+        ((IWinRTObject)item).NativeObject.Dispose();
+
     public static IDirect3DDevice Wrap(ID3D11Device device)
     {
         using var dxgi = device.QueryInterface<IDXGIDevice>();

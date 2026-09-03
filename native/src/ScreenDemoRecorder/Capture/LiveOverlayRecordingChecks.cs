@@ -9,11 +9,15 @@ internal static class LiveOverlayRecordingChecks
 {
     public static async Task RunAsync(DisplayInfo display, DesktopWindowInfo target, string directory)
     {
-        var item = GraphicsInterop.ForMonitor(display.Monitor);
         var crop = new PixelRect(target.Bounds.X - display.Bounds.X, target.Bounds.Y - display.Bounds.Y,
             target.Bounds.Width, target.Bounds.Height);
-        Require(RegionGeometry.Fit(crop, item.Size.Width, item.Size.Height, 2) == crop,
-            "The live-overlay test window does not fit the monitor capture item.");
+        var item = GraphicsInterop.ForMonitor(display.Monitor);
+        try
+        {
+            Require(RegionGeometry.Fit(crop, item.Size.Width, item.Size.Height, 2) == crop,
+                "The live-overlay test window does not fit the monitor capture item.");
+        }
+        finally { GraphicsInterop.Release(item); }
         var profile = new RecorderProfile();
         profile.Output.Directory = directory;
         profile.Output.FilenameTemplate = "live-overlay-check-{counter}";
@@ -41,7 +45,7 @@ internal static class LiveOverlayRecordingChecks
         NativeDesktop.FlushComposition();
         var cleanPath = Path.Combine(directory, "live-overlay-clean.mkv");
         if (File.Exists(cleanPath)) File.Delete(cleanPath);
-        var recording = new CpuIntermediateRecording(item, crop, cleanPath, 30, false);
+        var recording = new CpuIntermediateRecording(() => GraphicsInterop.ForMonitor(display.Monitor), crop, cleanPath, 30, false);
         try
         {
             await recording.Ready.WaitAsync(TimeSpan.FromSeconds(15));

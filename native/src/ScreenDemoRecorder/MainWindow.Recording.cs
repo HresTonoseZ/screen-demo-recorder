@@ -85,7 +85,7 @@ public partial class MainWindow
             boundary?.Dispose(); boundary = null;
             desktopOverlay?.Dispose(); desktopOverlay = null;
             NativeDesktop.FlushComposition();
-            recording = new CpuRecordingSession(target.Item, area, snapshot,
+            recording = new CpuRecordingSession(target.CreateItem, area, snapshot,
                 snapshot.Capture.AutomaticFps ? 30 : snapshot.Capture.RecordingFps,
                 overlays,
                 screenPointMapper: target.MapScreenPoint,

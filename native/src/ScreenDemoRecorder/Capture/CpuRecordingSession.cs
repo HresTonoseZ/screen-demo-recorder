@@ -12,7 +12,7 @@ internal sealed class CpuRecordingSession
 {
     private readonly object sync = new();
     private readonly object eventSync = new();
-    private readonly GraphicsCaptureItem item;
+    private readonly Func<GraphicsCaptureItem> createItem;
     private readonly PixelRect area;
     private readonly RecorderProfile profile;
     private readonly double frameRate;
@@ -62,15 +62,17 @@ internal sealed class CpuRecordingSession
 
     public string? RecoveryPath { get; private set; }
 
-    public CpuRecordingSession(GraphicsCaptureItem captureItem, PixelRect region, RecorderProfile settings,
+    internal bool UsedDedicatedCaptureThread => cleanRecording?.UsedDedicatedMtaThread == true;
+
+    public CpuRecordingSession(Func<GraphicsCaptureItem> captureItemFactory, PixelRect region, RecorderProfile settings,
         double fps, RecordingOverlays renderedOverlays, Func<PixelPoint, PixelPoint?>? screenPointMapper = null,
         Func<string?>? sourceValidation = null, Action<KeyChord, TimeSpan>? liveKeystroke = null,
         Action<PixelPoint, MouseClickButton, TimeSpan>? liveClick = null)
     {
-        ArgumentNullException.ThrowIfNull(captureItem);
+        ArgumentNullException.ThrowIfNull(captureItemFactory);
         ArgumentNullException.ThrowIfNull(settings);
         ArgumentNullException.ThrowIfNull(renderedOverlays);
-        item = captureItem;
+        createItem = captureItemFactory;
         area = region;
         profile = settings;
         frameRate = fps;
@@ -151,7 +153,7 @@ internal sealed class CpuRecordingSession
             session = await RecordingSessionStore.CreateAsync(sessionRoot, manifest).ConfigureAwait(false);
             journal = session.CreateEventJournal();
             journalWorker = WriteJournalAsync(journal);
-            cleanRecording = new CpuIntermediateRecording(item, area, session.CleanVideoPath, frameRate,
+            cleanRecording = new CpuIntermediateRecording(createItem, area, session.CleanVideoPath, frameRate,
                 profile.Capture.ShowCursor, validateSource);
             var startup = await Task.WhenAny(cleanRecording.Ready, cleanRecording.Completion).ConfigureAwait(false);
             var started = false;

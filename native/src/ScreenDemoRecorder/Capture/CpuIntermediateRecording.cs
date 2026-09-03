@@ -5,13 +5,14 @@ using Vortice.Direct3D;
 using Vortice.Direct3D11;
 using Windows.Graphics.Capture;
 using Windows.Graphics.DirectX;
+using System.Windows.Threading;
 
 namespace ScreenDemoRecorder.Capture;
 
 internal sealed class CpuIntermediateRecording
 {
     private readonly object sync = new();
-    private readonly GraphicsCaptureItem item;
+    private readonly Func<GraphicsCaptureItem> createItem;
     private readonly PixelRect area;
     private readonly string outputPath;
     private readonly double frameRate;
@@ -24,6 +25,9 @@ internal sealed class CpuIntermediateRecording
     private Exception? failure;
     private bool stopped;
     private bool paused;
+    private int captureThreadId;
+    private bool captureLifecycleStayedOnOwnerThread = true;
+    private ApartmentState captureApartment;
 
     public Task<bool> Ready => ready.Task;
 
@@ -33,23 +37,25 @@ internal sealed class CpuIntermediateRecording
 
     public bool IsPaused { get { lock (sync) return paused; } }
 
-    public CpuIntermediateRecording(GraphicsCaptureItem captureItem, PixelRect region, string cleanVideoPath,
+    internal bool UsedDedicatedMtaThread => captureThreadId != 0 &&
+        captureApartment == ApartmentState.MTA && captureLifecycleStayedOnOwnerThread;
+
+    public CpuIntermediateRecording(Func<GraphicsCaptureItem> captureItemFactory, PixelRect region, string cleanVideoPath,
         double fps, bool captureCursor, Func<string?>? sourceValidation = null)
     {
         if (!GraphicsCaptureSession.IsSupported()) throw new NotSupportedException("Windows screen capture is unavailable on this device.");
-        ArgumentNullException.ThrowIfNull(captureItem);
+        ArgumentNullException.ThrowIfNull(captureItemFactory);
         ArgumentException.ThrowIfNullOrWhiteSpace(cleanVideoPath);
         if (!double.IsFinite(fps) || fps is < 1 or > 120) throw new ArgumentOutOfRangeException(nameof(fps));
-        if (region.X < 0 || region.Y < 0 || region.Width < 1 || region.Height < 1 ||
-            region.Right > captureItem.Size.Width || region.Bottom > captureItem.Size.Height)
-            throw new ArgumentException("The capture region no longer fits. Select the area again.");
-        item = captureItem;
+        if (region.X < 0 || region.Y < 0 || region.Width < 1 || region.Height < 1)
+            throw new ArgumentException("The capture region is invalid. Select the area again.");
+        createItem = captureItemFactory;
         area = region;
         outputPath = Path.GetFullPath(cleanVideoPath);
         frameRate = fps;
         showCursor = captureCursor;
         validateSource = sourceValidation;
-        Completion = Task.Run(RecordAsync);
+        Completion = RunOnCaptureThread(RecordAsync);
     }
 
     public void TogglePause()
@@ -79,14 +85,21 @@ internal sealed class CpuIntermediateRecording
     {
         ID3D11Device? device = null;
         ID3D11DeviceContext? context = null;
+        GraphicsCaptureItem? item = null;
+        captureThreadId = Environment.CurrentManagedThreadId;
+        captureApartment = Thread.CurrentThread.GetApartmentState();
         try
         {
+            item = createItem();
+            var sourceSize = item.Size;
+            if (area.Right > sourceSize.Width || area.Bottom > sourceSize.Height)
+                throw new ArgumentException("The capture region no longer fits. Select the area again.");
             CreateGraphicsDevice(out device, out context);
             using var multithread = device.QueryInterface<ID3D11Multithread>();
             multithread.SetMultithreadProtected(true);
             using var captureDevice = GraphicsInterop.Wrap(device);
             using var pool = Direct3D11CaptureFramePool.CreateFreeThreaded(captureDevice,
-                DirectXPixelFormat.B8G8R8A8UIntNormalized, 2, item.Size);
+                DirectXPixelFormat.B8G8R8A8UIntNormalized, 2, sourceSize);
             using var session = pool.CreateCaptureSession(item);
             using var reader = new StagingFrameReader(device, context);
             session.IsCursorCaptureEnabled = showCursor;
@@ -95,7 +108,7 @@ internal sealed class CpuIntermediateRecording
             try
             {
                 session.StartCapture();
-                if (!await WaitForFirstFrameAsync().WaitAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(false)) return;
+                if (!await WaitForFirstFrameAsync().WaitAsync(TimeSpan.FromSeconds(10))) return;
                 await using var encoder = new FfmpegLosslessEncoder(FfmpegRuntime.RequireExecutable(), outputPath,
                     area.Width, area.Height, frameRate);
                 lock (sync)
@@ -104,8 +117,8 @@ internal sealed class CpuIntermediateRecording
                     clock.Start();
                     ready.TrySetResult(true);
                 }
-                await SampleFramesAsync(reader, encoder).ConfigureAwait(false);
-                await encoder.CompleteAsync().ConfigureAwait(false);
+                await SampleFramesAsync(reader, encoder);
+                await encoder.CompleteAsync();
             }
             finally
             {
@@ -116,6 +129,7 @@ internal sealed class CpuIntermediateRecording
         }
         finally
         {
+            captureLifecycleStayedOnOwnerThread &= Environment.CurrentManagedThreadId == captureThreadId;
             Stop();
             lock (sync)
             {
@@ -124,6 +138,7 @@ internal sealed class CpuIntermediateRecording
             }
             context?.Dispose();
             device?.Dispose();
+            if (item is not null) GraphicsInterop.Release(item);
         }
     }
 
@@ -145,12 +160,12 @@ internal sealed class CpuIntermediateRecording
             }
             if (delay == Timeout.InfiniteTimeSpan)
             {
-                await signal.ConfigureAwait(false);
+                await signal;
                 continue;
             }
             if (delay > TimeSpan.Zero)
             {
-                await Task.WhenAny(signal, Task.Delay(delay)).ConfigureAwait(false);
+                await Task.WhenAny(signal, Task.Delay(delay));
                 continue;
             }
 
@@ -162,7 +177,7 @@ internal sealed class CpuIntermediateRecording
                 reader.CopyFrom(input, area);
             }
             var frame = reader.ReadMapped(TimeSpan.FromTicks(nextFrameTicks));
-            await encoder.WriteAsync(frame).ConfigureAwait(false);
+            await encoder.WriteAsync(frame);
             nextFrameTicks = checked(nextFrameTicks + period);
         }
     }
@@ -179,7 +194,7 @@ internal sealed class CpuIntermediateRecording
                 if (latest is not null) return true;
                 signal = changed.Task;
             }
-            await signal.ConfigureAwait(false);
+            await signal;
         }
     }
 
@@ -192,7 +207,7 @@ internal sealed class CpuIntermediateRecording
             {
                 var frame = sender.TryGetNextFrame();
                 if (frame is null) return;
-                if (frame.ContentSize.Width != item.Size.Width || frame.ContentSize.Height != item.Size.Height)
+                if (frame.ContentSize.Width < area.Right || frame.ContentSize.Height < area.Bottom)
                 {
                     frame.Dispose();
                     throw new InvalidOperationException("The capture source changed size. Start a new recording.");
@@ -230,6 +245,36 @@ internal sealed class CpuIntermediateRecording
     }
 
     private static TaskCompletionSource NewSignal() => new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    private static Task RunOnCaptureThread(Func<Task> operation)
+    {
+        var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var thread = new Thread(() =>
+        {
+            var dispatcher = Dispatcher.CurrentDispatcher;
+            SynchronizationContext.SetSynchronizationContext(new DispatcherSynchronizationContext(dispatcher));
+            try
+            {
+                var running = operation();
+                _ = running.ContinueWith(_ => dispatcher.BeginInvokeShutdown(DispatcherPriority.Send),
+                    CancellationToken.None, TaskContinuationOptions.None, TaskScheduler.Default);
+                Dispatcher.Run();
+                running.GetAwaiter().GetResult();
+                completion.TrySetResult();
+            }
+            catch (Exception error)
+            {
+                completion.TrySetException(error);
+            }
+        })
+        {
+            IsBackground = true,
+            Name = "Windows Graphics Capture",
+        };
+        thread.SetApartmentState(ApartmentState.MTA);
+        thread.Start();
+        return completion.Task;
+    }
 
     private void Pulse()
     {

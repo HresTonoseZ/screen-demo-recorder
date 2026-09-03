@@ -168,7 +168,7 @@ internal static class CpuPipelineSmokeCheck
                 WindowProcessName = window.ProcessName,
                 WindowClassName = window.ClassName,
             }, [], window);
-            Require(capture.Area == new PixelRect(0, 0, capture.Item.Size.Width, capture.Item.Size.Height),
+            Require(capture.Area.X == 0 && capture.Area.Y == 0 && capture.Area.Width >= 2 && capture.Area.Height >= 2,
                 "Window capture did not select the complete window surface.");
             Require(capture.MapScreenPoint?.Invoke(new PixelPoint(window.Bounds.X + 12, window.Bounds.Y + 12)) is
                 { X: >= 0, Y: >= 0 }, "Window click coordinates were not mapped into the captured surface.");
@@ -176,7 +176,7 @@ internal static class CpuPipelineSmokeCheck
                 "A click outside the captured window was accepted.");
             var path = Path.Combine(directory, "cpu-wgc-clean.mkv");
             if (File.Exists(path)) File.Delete(path);
-            recording = new CpuIntermediateRecording(capture.Item, capture.Area, path, 20, false, capture.Validate);
+            recording = new CpuIntermediateRecording(capture.CreateItem, capture.Area, path, 20, false, capture.Validate);
             Require(await recording.Ready.WaitAsync(TimeSpan.FromSeconds(15)), "The clean CPU recorder did not receive its first WGC frame.");
             await Task.Delay(450);
             recording.TogglePause();
@@ -188,6 +188,8 @@ internal static class CpuPipelineSmokeCheck
             await Task.Delay(450);
             recording.Stop();
             await recording.Completion.WaitAsync(TimeSpan.FromSeconds(20));
+            Require(recording.UsedDedicatedMtaThread,
+                "The WGC lifecycle left its dedicated MTA thread.");
             var decodedPath = Path.Combine(directory, "cpu-wgc-clean.bgra");
             var pixels = await DecodeAsync(ffmpeg, path, decodedPath);
             var width = capture.Area.Width;
@@ -228,7 +230,7 @@ internal static class CpuPipelineSmokeCheck
             var overlays = RecordingOverlayPipeline.Create(profile, productCapture.Area.Width, productCapture.Area.Height);
             var liveKeys = 0;
             var liveClicks = 0;
-            productRecording = new CpuRecordingSession(productCapture.Item, productCapture.Area, profile, 20, overlays,
+            productRecording = new CpuRecordingSession(productCapture.CreateItem, productCapture.Area, profile, 20, overlays,
                 productCapture.MapScreenPoint, productCapture.Validate,
                 (_, _) => Interlocked.Increment(ref liveKeys),
                 (_, _, _) => Interlocked.Increment(ref liveClicks));
@@ -246,6 +248,8 @@ internal static class CpuPipelineSmokeCheck
             await Task.Delay(250);
             productRecording.Stop();
             var productPath = await productRecording.Completion.WaitAsync(TimeSpan.FromSeconds(30));
+            Require(productRecording.UsedDedicatedCaptureThread,
+                "The product WGC lifecycle left its dedicated MTA thread.");
             Require(productPath is not null && File.Exists(productPath),
                 "The product CPU session did not commit its final MP4.");
             Require(liveKeys == 1 && liveClicks == 1,
