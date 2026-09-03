@@ -43,9 +43,21 @@ $gifResult = Get-Content -LiteralPath "$TestDirectory\pipeline\gif-result.txt" -
 if ($Diagnostic -or $ShowGifResults) { Write-Output $gifResult }
 
 if ($Diagnostic) {
-    Invoke-AppCheck '--diagnostic-log-self-test' 'logging' 30
+    Invoke-AppCheck '--diagnostic-log-self-test' 'logging' 90
     $logs = Get-ChildItem -LiteralPath "$TestDirectory\logging\diagnostics" -Filter '*.log'
     if (-not ($logs | Get-Content | Select-String -SimpleMatch 'SELF_TEST PASS:')) { throw 'The diagnostic self-test did not persist success.' }
+    foreach ($stage in @('D3D.GetTextureDescription', 'D3D.CreateStagingTexture', 'D3D.CopySubresourceRegion', 'D3D.Map')) {
+        if (-not ($logs | Get-Content | Select-String -SimpleMatch "READBACK_STAGE_TEST PASS: $stage")) {
+            throw "Native readback stage was not verified: $stage"
+        }
+    }
+    $pipelineLogs = Get-ChildItem -LiteralPath "$TestDirectory\pipeline\diagnostics" -Filter '*.log' | Get-Content
+    foreach ($stage in @('D3D.GetTextureDescription', 'D3D.CreateStagingTexture', 'D3D.CopySubresourceRegion', 'D3D.Map', 'D3D.CopyMappedRows', 'D3D.Unmap')) {
+        if (-not ($pipelineLogs | Select-String -Pattern ("END #\d+ " + [regex]::Escape($stage) + ';'))) {
+            throw "Real pipeline did not complete the instrumented stage: $stage"
+        }
+    }
+    Write-Output 'PASS: precise native-call diagnostics in delayed-stage and real recording tests.'
     $forceDirectory = Join-Path $TestDirectory 'forced-stop'
     $process = Start-Process -FilePath $Executable -ArgumentList @('--diagnostic-force-stop-test', ('"' + $forceDirectory + '"')) -WindowStyle Hidden -PassThru
     try {

@@ -20,6 +20,7 @@ internal static class DiagnosticTrace
     private static Dispatcher? ui;
     private static int firstChanceCount;
     [ThreadStatic] private static bool loggingError;
+    [ThreadStatic] internal static Action<string>? BeforeNativeCallForChecks;
 
     [ModuleInitializer]
     internal static void Initialize()
@@ -43,6 +44,7 @@ internal static class DiagnosticTrace
         var version = typeof(DiagnosticTrace).Assembly.GetCustomAttributes(typeof(System.Reflection.AssemblyInformationalVersionAttribute), false)
             .Cast<System.Reflection.AssemblyInformationalVersionAttribute>().Single().InformationalVersion;
         Write($"START diagnostic version={version}; pid={Environment.ProcessId}");
+        Write("PROBE readback-v2: native readback calls and capture-state lock waits are instrumented; capture behavior is unchanged.");
         Write($"ENV OS={RuntimeInformation.OSDescription}; OSVersion={Environment.OSVersion}; " +
             $"runtime={RuntimeInformation.FrameworkDescription}; arch={RuntimeInformation.ProcessArchitecture}; " +
             $"processors={Environment.ProcessorCount}; 64bit={Environment.Is64BitProcess}");
@@ -73,6 +75,20 @@ internal static class DiagnosticTrace
     }
 
     internal static IDisposable Step(string name, bool quiet = false) => new Activity(name, quiet);
+    // Persist the first entry/exit, then use watchdog snapshots for stalled repeated calls.
+    internal static IDisposable NativeStep(string name) => Step(name, quiet: Counts.ContainsKey(name + ".completed"));
+    internal static T NativeCall<T>(string name, Func<T> action)
+    {
+        using var step = NativeStep(name);
+        BeforeNativeCallForChecks?.Invoke(name);
+        return action();
+    }
+    internal static void NativeCall(string name, Action action)
+    {
+        using var step = NativeStep(name);
+        BeforeNativeCallForChecks?.Invoke(name);
+        action();
+    }
     internal static T Call<T>(string name, Func<T> action, bool quiet = false)
     {
         using var step = Step(name, quiet);

@@ -1,4 +1,6 @@
 using System.Runtime.InteropServices;
+using System.Text.RegularExpressions;
+using ScreenDemoRecorder.Capture;
 
 namespace ScreenDemoRecorder;
 
@@ -7,6 +9,7 @@ internal static class DiagnosticChecks
     internal static async Task RunAsync()
     {
         CheckRetention();
+        await CheckReadbackStagesAsync();
         await Task.Delay(2500);
         // This stall exists only in an explicitly selected diagnostic test command.
         using (DiagnosticTrace.Step("SELF_TEST simulated UI stall")) Thread.Sleep(7000);
@@ -19,7 +22,64 @@ internal static class DiagnosticChecks
         Require(content.Contains("UI_UNRESPONSIVE") && content.Contains("0x8001010E") &&
             content.Contains("ACTIVE #") && content.Contains("DiagnosticChecks.RunAsync"),
             "The watchdog did not persist the UI stall, operation, HRESULT and exception stack.");
-        DiagnosticTrace.Write("SELF_TEST PASS: rotation, retention, UI hang, active operation, HRESULT and stack persisted.");
+        DiagnosticTrace.Write("SELF_TEST PASS: native readback stages, rotation, retention, UI hang, active operation, HRESULT and stack persisted.");
+    }
+
+    private static async Task CheckReadbackStagesAsync()
+    {
+        string[] stages = ["D3D.GetTextureDescription", "D3D.CreateStagingTexture", "D3D.CopySubresourceRegion", "D3D.Map"];
+        foreach (var stage in stages)
+        {
+            using var entered = new ManualResetEventSlim();
+            using var release = new ManualResetEventSlim();
+            var marker = "READBACK_TEST begin stage=" + stage;
+            DiagnosticTrace.Write(marker);
+            var worker = Task.Run(() =>
+            {
+                // Only this explicit test's worker receives the hook. Normal capture never does.
+                DiagnosticTrace.BeforeNativeCallForChecks = name =>
+                {
+                    if (name != stage) return;
+                    entered.Set();
+                    if (!release.Wait(TimeSpan.FromSeconds(15))) throw new TimeoutException("Readback test gate was not released.");
+                };
+                try { CpuFrameReadbackChecks.Run(); }
+                finally { DiagnosticTrace.BeforeNativeCallForChecks = null; }
+            });
+            try
+            {
+                var deadline = Environment.TickCount64 + 10000;
+                while (!entered.IsSet && !worker.IsCompleted && Environment.TickCount64 < deadline)
+                    await Task.Delay(50);
+                Require(entered.IsSet, "The readback test never reached " + stage);
+                Match active;
+                do
+                {
+                    await Task.Delay(100);
+                    var log = ReadCurrentLog();
+                    var markerIndex = log.LastIndexOf(marker, StringComparison.Ordinal);
+                    active = Regex.Match(log[(markerIndex + marker.Length)..], @"ACTIVE #(\d+) " + Regex.Escape(stage) + @"; owner=T\d+/MTA;");
+                } while (!active.Success && Environment.TickCount64 < deadline);
+                Require(active.Success, "The watchdog did not identify the delayed native call: " + stage);
+                var activityId = active.Groups[1].Value;
+                Require(!ReadCurrentLog().Contains($"END #{activityId} {stage};"), "The delayed operation was marked complete too early.");
+                release.Set();
+                await worker.WaitAsync(TimeSpan.FromSeconds(10));
+                // CpuFrameReadbackChecks also validates the actual returned frame's pixels.
+                DiagnosticTrace.Write("READBACK_STAGE_TEST PASS: " + stage);
+            }
+            finally
+            {
+                release.Set();
+                await worker.WaitAsync(TimeSpan.FromSeconds(10));
+            }
+        }
+    }
+
+    private static string ReadCurrentLog()
+    {
+        using var reader = new StreamReader(new FileStream(DiagnosticTrace.LogPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite));
+        return reader.ReadToEnd();
     }
 
     internal static async Task WaitForForcedStopAsync()

@@ -35,7 +35,22 @@ internal sealed class CpuIntermediateRecording
 
     public TimeSpan Elapsed => clock.Elapsed;
 
-    public bool IsPaused { get { lock (sync) return paused; } }
+    public bool IsPaused
+    {
+        get
+        {
+#if RECORDER_DIAGNOSTICS
+            using var diagnosticWait = DiagnosticTrace.NativeStep("WGC.IsPaused.WaitLock");
+#endif
+            lock (sync)
+            {
+#if RECORDER_DIAGNOSTICS
+                diagnosticWait.Dispose();
+#endif
+                return paused;
+            }
+        }
+    }
 
     internal bool UsedDedicatedMtaThread => captureThreadId != 0 &&
         captureApartment == ApartmentState.MTA && captureLifecycleStayedOnOwnerThread;
@@ -76,9 +91,13 @@ internal sealed class CpuIntermediateRecording
     {
 #if RECORDER_DIAGNOSTICS
         using var diagnosticScope = DiagnosticTrace.Step("WGC.Stop", false);
+        using var diagnosticWait = DiagnosticTrace.NativeStep("WGC.Stop.WaitLock");
 #endif
         lock (sync)
         {
+#if RECORDER_DIAGNOSTICS
+            diagnosticWait.Dispose();
+#endif
             if (stopped) return;
             stopped = true;
             clock.Stop();
@@ -263,9 +282,13 @@ internal sealed class CpuIntermediateRecording
     {
 #if RECORDER_DIAGNOSTICS
         using var diagnosticScope = DiagnosticTrace.Step("WGC.FrameArrived", true);
+        using var diagnosticWait = DiagnosticTrace.NativeStep("WGC.FrameArrived.WaitLock");
 #endif
         lock (sync)
         {
+#if RECORDER_DIAGNOSTICS
+            diagnosticWait.Dispose();
+#endif
             if (stopped) return;
             try
             {

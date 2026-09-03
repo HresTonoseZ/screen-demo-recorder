@@ -49,7 +49,22 @@ internal sealed class CpuRecordingSession
 
     public bool IsPaused => cleanRecording?.IsPaused ?? false;
 
-    public bool IsStopped { get { lock (sync) return stopped; } }
+    public bool IsStopped
+    {
+        get
+        {
+#if RECORDER_DIAGNOSTICS
+            using var diagnosticWait = DiagnosticTrace.NativeStep("Session.IsStopped.WaitLock");
+#endif
+            lock (sync)
+            {
+#if RECORDER_DIAGNOSTICS
+                diagnosticWait.Dispose();
+#endif
+                return stopped;
+            }
+        }
+    }
 
     public bool UsesSoftwareEncoder => true;
 
@@ -112,9 +127,13 @@ internal sealed class CpuRecordingSession
     {
 #if RECORDER_DIAGNOSTICS
         using var diagnosticScope = DiagnosticTrace.Step("Session.Stop", false);
+        using var diagnosticWait = DiagnosticTrace.NativeStep("Session.Stop.WaitLock");
 #endif
         lock (sync)
         {
+#if RECORDER_DIAGNOSTICS
+            diagnosticWait.Dispose();
+#endif
             if (finished) return;
             discarded |= discard;
             stopped = true;

@@ -53,6 +53,26 @@ The watchdog observes; it does not fix, interrupt or restart stalled recording.
 It cannot continue if Windows itself freezes, and the log is not a complete
 native thread dump. A second diagnostic pass may still be necessary.
 
+### Readback probe v2
+
+Logs containing `PROBE readback-v2` separately identify texture-description
+retrieval, staging-buffer creation/release, `CopySubresourceRegion`, `Map`,
+mapped-row copying and `Unmap`. The first entry and exit of each operation are
+flushed to disk; repeated operations remain visible in watchdog snapshots and
+counters without writing per-frame entry/exit noise. Capture callback, pause
+status and stop lock waits have their own markers.
+
+This probe does not change the capture algorithm or locking strategy. For the
+reported Windows 10 case, first repeat MP4 recording at 2560x1440 and 30 FPS with
+live label/key/click previews disabled. If it hangs, wait 15 seconds and send
+the latest run's logs. A successful run on a different PC is not a confirmed fix.
+
+The explicit diagnostic self-test delays four individual native-call boundaries
+inside the real staging readback path. It verifies the watchdog identifies each
+pending stage, then releases the delay and checks the actual returned pixels.
+These synthetic delays test diagnostic precision, not the remote driver's
+behavior or the responsiveness of a real capture session stalled inside it.
+
 ## Build separation and automated checks
 
 `RecorderDiagnostics=true` defines `RECORDER_DIAGNOSTICS`. Conditional call
