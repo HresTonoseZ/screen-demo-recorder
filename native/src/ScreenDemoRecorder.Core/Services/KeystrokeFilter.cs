@@ -25,6 +25,7 @@ public sealed class KeystrokeFilter(KeystrokeOverlaySettings settings, CaptureSe
         name ??= $"VK {virtualKey:X2}";
         var textKey = IsTextKey(virtualKey);
         var ownModifier = ModifierForKey(virtualKey);
+        if (ownModifier != KeyModifiers.None) return null;
         var chordModifiers = modifiers & ~ownModifier;
         var shortcut = (chordModifiers & (KeyModifiers.Control | KeyModifiers.Alt | KeyModifiers.Windows)) != 0 && !altGr;
         var functionKey = virtualKey is >= 0x70 and <= 0x87;

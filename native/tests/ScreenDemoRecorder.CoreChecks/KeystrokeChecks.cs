@@ -33,7 +33,18 @@ internal static class KeystrokeChecks
         Check(filter.Filter(0x24, KeyModifiers.None)?.Identity == "Home", "All-keys mode dropped Home.");
         Check(filter.Filter(0x78, KeyModifiers.None)?.Identity == "F9", "All-keys mode dropped F9.");
         Check(filter.Filter(0x64, KeyModifiers.None)?.Identity == "Num 4", "All-keys mode dropped a numpad key.");
-        Check(filter.Filter(0xA0, KeyModifiers.Shift)?.Identity == "Left Shift", "All-keys mode dropped a standalone modifier.");
+        foreach (var (key, modifier) in new[]
+        {
+            (0xA0, KeyModifiers.Shift),
+            (0xA2, KeyModifiers.Control),
+            (0xA4, KeyModifiers.Alt),
+            (0x5B, KeyModifiers.Windows),
+        })
+            Check(filter.Filter(key, modifier) is null, "All-keys mode displayed a standalone modifier.");
+        Check(filter.Filter(0x43, KeyModifiers.Shift)?.Identity == "Shift+C",
+            "All-keys mode did not combine Shift with the pressed key.");
+        Check(filter.Filter(0x43, KeyModifiers.Control | KeyModifiers.Alt | KeyModifiers.Shift)?.Identity == "Ctrl+Alt+Shift+C",
+            "All-keys mode did not combine multiple modifiers with the pressed key.");
         Check(filter.Filter(0x4E, KeyModifiers.Control | KeyModifiers.Alt | KeyModifiers.Shift)?.Identity == "Ctrl+Alt+Shift+N",
             "All-keys mode did not preserve a multi-modifier chord.");
         Check(filter.Filter(0x41, KeyModifiers.Control | KeyModifiers.Alt, altGr: true)?.Identity == "Ctrl+Alt+A",
