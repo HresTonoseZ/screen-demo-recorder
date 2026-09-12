@@ -10,6 +10,10 @@ namespace ScreenDemoRecorder;
 public sealed class RegionSelectorWindow : Window
 {
     private readonly RegionSurface surface;
+    private readonly TextBox regionXBox = NumberBox();
+    private readonly TextBox regionYBox = NumberBox();
+    private readonly TextBox regionWidthBox = NumberBox();
+    private readonly TextBox regionHeightBox = NumberBox();
     public PixelRect SelectedRegion => surface.Region;
     public bool LockAspectRatio => surface.LockAspect;
     public bool SnapToEdges => surface.SnapEdges;
@@ -43,6 +47,14 @@ public sealed class RegionSelectorWindow : Window
             preset.Click += (_, _) => { surface.SetSize(size.Item1, size.Item2); surface.Focus(); };
             commands.Children.Add(preset);
         }
+        AddNumberField(commands, "X", regionXBox);
+        AddNumberField(commands, "Y", regionYBox);
+        AddNumberField(commands, "W", regionWidthBox);
+        AddNumberField(commands, "H", regionHeightBox);
+        foreach (var box in new[] { regionXBox, regionYBox, regionWidthBox, regionHeightBox })
+            box.LostKeyboardFocus += (_, _) => ApplyManualRegion();
+        surface.RegionChanged += (_, _) => WriteManualRegion();
+        WriteManualRegion();
         var aspect = new CheckBox { Content = $"Lock {settings.AspectWidth}:{settings.AspectHeight}", IsChecked = settings.LockAspectRatio, Margin = new Thickness(10, 0, 10, 0) };
         aspect.Click += (_, _) => { surface.LockAspect = aspect.IsChecked == true; surface.Focus(); };
         commands.Children.Add(aspect);
@@ -70,9 +82,52 @@ public sealed class RegionSelectorWindow : Window
         PreviewKeyDown += (_, e) =>
         {
             if (e.Key == Key.Escape) { DialogResult = false; e.Handled = true; }
+            if (e.Key == Key.Enter && e.OriginalSource is TextBox)
+            {
+                ApplyManualRegion(); surface.Focus(); e.Handled = true; return;
+            }
             if (e.Key == Key.Enter) { DialogResult = true; e.Handled = true; }
         };
         surface.Accepted += (_, _) => DialogResult = true;
+    }
+
+    private static TextBox NumberBox() => new()
+    {
+        Width = 58,
+        Margin = new Thickness(3),
+        Padding = new Thickness(5, 3, 5, 3),
+        TextAlignment = TextAlignment.Right,
+    };
+
+    private static void AddNumberField(Panel panel, string label, TextBox box)
+    {
+        panel.Children.Add(new TextBlock
+        {
+            Text = label,
+            Foreground = Brushes.White,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(5, 0, 0, 0),
+        });
+        panel.Children.Add(box);
+    }
+
+    private void WriteManualRegion()
+    {
+        var region = surface.Region;
+        regionXBox.Text = region.X.ToString(CultureInfo.InvariantCulture);
+        regionYBox.Text = region.Y.ToString(CultureInfo.InvariantCulture);
+        regionWidthBox.Text = region.Width.ToString(CultureInfo.InvariantCulture);
+        regionHeightBox.Text = region.Height.ToString(CultureInfo.InvariantCulture);
+    }
+
+    private void ApplyManualRegion()
+    {
+        if (int.TryParse(regionXBox.Text, NumberStyles.Integer, CultureInfo.CurrentCulture, out var x) &&
+            int.TryParse(regionYBox.Text, NumberStyles.Integer, CultureInfo.CurrentCulture, out var y) &&
+            int.TryParse(regionWidthBox.Text, NumberStyles.Integer, CultureInfo.CurrentCulture, out var width) &&
+            int.TryParse(regionHeightBox.Text, NumberStyles.Integer, CultureInfo.CurrentCulture, out var height))
+            surface.SetRegion(new PixelRect(x, y, width, height));
+        WriteManualRegion();
     }
 }
 
@@ -86,6 +141,7 @@ internal sealed class RegionSurface : FrameworkElement
     private RegionEdges edges;
     private bool drawing, dragging;
     public event EventHandler? Accepted;
+    public event EventHandler? RegionChanged;
     public PixelRect Region { get; private set; }
     public bool LockAspect { get; set; }
     public bool SnapEdges { get; set; }
@@ -101,8 +157,18 @@ internal sealed class RegionSurface : FrameworkElement
 
     public void SetSize(int width, int height)
     {
-        Region = RegionGeometry.Fit(Region with { Width = width, Height = height }, screenWidth, screenHeight, settings.RegionMinimumSize);
+        SetRegion(Region with { Width = width, Height = height });
+    }
+
+    public void SetRegion(PixelRect region) => UpdateRegion(
+        RegionGeometry.Fit(region, screenWidth, screenHeight, settings.RegionMinimumSize));
+
+    private void UpdateRegion(PixelRect region)
+    {
+        if (Region == region) return;
+        Region = region;
         InvalidateVisual();
+        RegionChanged?.Invoke(this, EventArgs.Empty);
     }
 
     private Point ToPixels(Point p)
@@ -221,12 +287,12 @@ internal sealed class RegionSurface : FrameworkElement
         double? ratio = LockAspect || Keyboard.Modifiers.HasFlag(ModifierKeys.Shift) ? (double)settings.AspectWidth / settings.AspectHeight : null;
         if (drawing)
         {
-            Region = RegionGeometry.Create(new PixelPoint((int)Math.Round(startPoint.X), (int)Math.Round(startPoint.Y)),
+            UpdateRegion(RegionGeometry.Create(new PixelPoint((int)Math.Round(startPoint.X), (int)Math.Round(startPoint.Y)),
                 new PixelPoint((int)Math.Round(p.X), (int)Math.Round(p.Y)), screenWidth, screenHeight, ratio,
-                Math.Min(settings.RegionMinimumSize, Math.Min(screenWidth, screenHeight)));
+                Math.Min(settings.RegionMinimumSize, Math.Min(screenWidth, screenHeight))));
         }
         else if (edges == RegionEdges.None)
-            Region = RegionGeometry.Move(start, dx, dy, screenWidth, screenHeight, SnapEdges ? 12 : 0);
+            UpdateRegion(RegionGeometry.Move(start, dx, dy, screenWidth, screenHeight, SnapEdges ? 12 : 0));
         else
         {
             if (SnapEdges && ratio is null)
@@ -236,9 +302,8 @@ internal sealed class RegionSurface : FrameworkElement
                 if (edges.HasFlag(RegionEdges.Top) && Math.Abs(start.Y + dy) < 12) dy = -start.Y;
                 if (edges.HasFlag(RegionEdges.Bottom) && Math.Abs(screenHeight - start.Bottom - dy) < 12) dy = screenHeight - start.Bottom;
             }
-            Region = RegionGeometry.Resize(start, edges, dx, dy, screenWidth, screenHeight, ratio, settings.RegionMinimumSize);
+            UpdateRegion(RegionGeometry.Resize(start, edges, dx, dy, screenWidth, screenHeight, ratio, settings.RegionMinimumSize));
         }
-        InvalidateVisual();
     }
 
     protected override void OnMouseLeftButtonUp(MouseButtonEventArgs e)
@@ -254,8 +319,8 @@ internal sealed class RegionSurface : FrameworkElement
         var dx = e.Key == Key.Left ? -step : e.Key == Key.Right ? step : 0;
         var dy = e.Key == Key.Up ? -step : e.Key == Key.Down ? step : 0;
         if (dx == 0 && dy == 0) return;
-        Region = RegionGeometry.Move(Region, dx, dy, screenWidth, screenHeight);
-        InvalidateVisual(); e.Handled = true;
+        UpdateRegion(RegionGeometry.Move(Region, dx, dy, screenWidth, screenHeight));
+        e.Handled = true;
     }
 
     private static SolidColorBrush Brush(string rgba)
