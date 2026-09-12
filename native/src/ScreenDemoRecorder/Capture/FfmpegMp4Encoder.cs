@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Globalization;
 using System.Threading.Channels;
+using ScreenDemoRecorder.Core.Models;
 using ScreenDemoRecorder.Core.Services;
 
 namespace ScreenDemoRecorder.Capture;
@@ -14,7 +15,7 @@ internal sealed class FfmpegMp4Encoder : IAsyncDisposable
     private bool completed;
 
     public FfmpegMp4Encoder(string executablePath, string outputPath, int inputWidth, int inputHeight,
-        Mp4OutputPlan outputPlan, double frameRate, int bitrate, int capacity = 3)
+        Mp4OutputPlan outputPlan, double frameRate, QualityPreset quality, int capacity = 3)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(executablePath);
         ArgumentException.ThrowIfNullOrWhiteSpace(outputPath);
@@ -25,7 +26,7 @@ internal sealed class FfmpegMp4Encoder : IAsyncDisposable
         if (outputPlan.CaptureWidth != inputWidth || outputPlan.CaptureHeight != inputHeight)
             throw new ArgumentException("The MP4 output plan does not match the input geometry.", nameof(outputPlan));
         if (!double.IsFinite(frameRate) || frameRate is < 1 or > 120) throw new ArgumentOutOfRangeException(nameof(frameRate));
-        if (bitrate < 1) throw new ArgumentOutOfRangeException(nameof(bitrate));
+        if (!Enum.IsDefined(quality)) throw new ArgumentOutOfRangeException(nameof(quality));
         if (capacity < 1) throw new ArgumentOutOfRangeException(nameof(capacity));
         Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(outputPath))!);
         if (File.Exists(outputPath)) throw new IOException($"The final MP4 already exists: {outputPath}.");
@@ -37,7 +38,7 @@ internal sealed class FfmpegMp4Encoder : IAsyncDisposable
             SingleWriter = true,
         });
         process = new Process { StartInfo = CreateStartInfo(executablePath, outputPath,
-            inputWidth, inputHeight, outputPlan, frameRate, bitrate) };
+            inputWidth, inputHeight, outputPlan, frameRate, quality) };
         if (!process.Start()) throw new InvalidOperationException("FFmpeg did not start the CPU H.264 encoder.");
 #if RECORDER_DIAGNOSTICS
         DiagnosticTrace.Write("FFmpeg.H264 started pid=" + process.Id);
@@ -120,7 +121,7 @@ internal sealed class FfmpegMp4Encoder : IAsyncDisposable
     }
 
     internal static ProcessStartInfo CreateStartInfo(string executablePath, string outputPath,
-        int inputWidth, int inputHeight, Mp4OutputPlan outputPlan, double frameRate, int bitrate)
+        int inputWidth, int inputHeight, Mp4OutputPlan outputPlan, double frameRate, QualityPreset quality)
     {
         var startInfo = new ProcessStartInfo
         {
@@ -131,15 +132,20 @@ internal sealed class FfmpegMp4Encoder : IAsyncDisposable
             CreateNoWindow = true,
             WorkingDirectory = Path.GetDirectoryName(Path.GetFullPath(executablePath))!,
         };
+        var quantizer = quality switch
+        {
+            QualityPreset.Efficient => 30,
+            QualityPreset.Crisp => 16,
+            _ => 24,
+        };
         string[] arguments =
         [
             "-hide_banner", "-nostdin", "-loglevel", "error", "-f", "rawvideo", "-pixel_format", "bgra",
             "-video_size", $"{inputWidth}x{inputHeight}", "-framerate", frameRate.ToString("0.###", CultureInfo.InvariantCulture),
             "-i", "pipe:0", "-an", "-vf", $"scale={outputPlan.ContentWidth}:{outputPlan.ContentHeight}:flags=lanczos," +
                 $"pad={outputPlan.Width}:{outputPlan.Height}:(ow-iw)/2:(oh-ih)/2,format=yuv420p",
-            "-c:v", "libopenh264", "-b:v", bitrate.ToString(CultureInfo.InvariantCulture),
-            "-maxrate", (bitrate * 3L / 2).ToString(CultureInfo.InvariantCulture),
-            "-bufsize", (bitrate * 2L).ToString(CultureInfo.InvariantCulture),
+            "-c:v", "libopenh264", "-qmin", quantizer.ToString(CultureInfo.InvariantCulture),
+            "-qmax", quantizer.ToString(CultureInfo.InvariantCulture),
             "-movflags", "+faststart", "-f", "mp4", Path.GetFullPath(outputPath),
         ];
         foreach (var argument in arguments) startInfo.ArgumentList.Add(argument);

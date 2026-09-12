@@ -50,11 +50,8 @@ internal static class CpuRecordingRenderer
         var diagnostics = decoder.StandardError.ReadToEndAsync(cancellationToken);
         try
         {
-            var bitsPerPixel = quality switch { QualityPreset.Efficient => 0.08, QualityPreset.Crisp => 0.24, _ => 0.14 };
-            var bitrate = (int)Math.Clamp(outputPlan.Width * (double)outputPlan.Height * frameRate * bitsPerPixel,
-                500_000, 80_000_000);
             await using var encoder = new FfmpegMp4Encoder(ffmpegPath, partialPath, width, height,
-                outputPlan, frameRate, bitrate);
+                outputPlan, frameRate, quality);
             long frameIndex = 0;
             while (true)
             {

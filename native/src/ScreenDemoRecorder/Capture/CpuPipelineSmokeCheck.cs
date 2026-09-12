@@ -62,6 +62,7 @@ internal static class CpuPipelineSmokeCheck
         var finalPixels = await DecodeAsync(ffmpeg, finalPath, Path.Combine(directory, "cpu-offline-final.bgra"));
         Require(finalPixels.Length == frameSize * frameCount,
             "The final CPU-rendered MP4 changed the frame count or geometry.");
+        await CheckStaticMp4Async(ffmpeg, directory);
 
         var cancelledPath = Path.Combine(directory, "cpu-cancelled-final.mp4");
         using (var cancellation = new CancellationTokenSource())
@@ -89,6 +90,43 @@ internal static class CpuPipelineSmokeCheck
             $"PASS: GPU staging readback, CPU overlay blending, cancellation/recovery, {frameCount} generated FFV1/OpenH264 frames, " +
             $"{captureResult.FrameCount} real WGC frames, and the normal CPU recording session with shared live/journal events decoded successfully.\n" +
             $"{videoPath}\n{finalPath}\n{captureResult.Path}\n");
+    }
+
+    private static async Task CheckStaticMp4Async(string ffmpeg, string directory)
+    {
+        const int width = 64;
+        const int height = 48;
+        const int frameCount = 30;
+        var path = Path.Combine(directory, "cpu-static-final.mp4");
+        if (File.Exists(path)) File.Delete(path);
+        await using (var encoder = new FfmpegMp4Encoder(ffmpeg, path, width, height,
+            Mp4OutputPlan.Create(width, height, 0), 30, QualityPreset.Balanced))
+        {
+            for (var index = 0; index < frameCount; index++)
+            {
+                var frame = new CpuVideoFrame(width, height, TimeSpan.FromSeconds(index / 30d));
+                var pixels = frame.Pixels.Span;
+                for (var y = 0; y < height; y++)
+                for (var x = 0; x < width; x++)
+                {
+                    var offset = (y * width + x) * 4;
+                    var light = (x / 4 + y / 4) % 2 == 0;
+                    pixels[offset] = light ? (byte)235 : (byte)24;
+                    pixels[offset + 1] = light ? (byte)245 : (byte)32;
+                    pixels[offset + 2] = light ? (byte)255 : (byte)48;
+                    pixels[offset + 3] = 255;
+                }
+                await encoder.WriteAsync(frame);
+            }
+            await encoder.CompleteAsync();
+        }
+        var decoded = await DecodeAsync(ffmpeg, path, Path.Combine(directory, "cpu-static-final.bgra"));
+        var frameSize = width * height * 4;
+        Require(decoded.Length == frameSize * frameCount, "The static MP4 changed the frame count or geometry.");
+        var first = decoded.AsSpan(0, frameSize);
+        for (var index = 1; index < frameCount; index++)
+            Require(first.SequenceEqual(decoded.AsSpan(index * frameSize, frameSize)),
+                "MP4 compression changed pixels between identical static frames.");
     }
 
     private static async Task CheckRecoveryAsync(string cleanSource, string outputDirectory,
