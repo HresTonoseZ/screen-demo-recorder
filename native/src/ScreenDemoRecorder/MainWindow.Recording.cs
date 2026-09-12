@@ -12,12 +12,14 @@ public partial class MainWindow
 {
     private CpuRecordingSession? recording;
     private CancellationTokenSource? countdown;
+    private CountdownOverlayWindow? countdownOverlay;
     private CancellationTokenSource? exportCancellation;
     private bool closingAfterRecording;
     private Task? recordingTask;
     private bool recordingBusy;
     private bool dispatchingRecordingCommand;
     internal Task? ActiveRecordingTask => recordingTask;
+    internal bool CountdownOverlayVisible => countdownOverlay?.IsVisible == true;
 
     private void RecordButton_Click(object sender, RoutedEventArgs e) => ExecuteRecordingCommand(RecorderCommand.ToggleRecording);
 
@@ -79,10 +81,13 @@ public partial class MainWindow
             var target = CaptureTargetFactory.Create(snapshot.Capture, displays, selectedWindow);
             for (var seconds = snapshot.Capture.CountdownSeconds; seconds > 0; seconds--)
             {
+                countdownOverlay ??= new CountdownOverlayWindow(target.ScreenArea);
+                countdownOverlay.ShowNumber(seconds);
                 RecordButton.Content = $"Starting in {seconds}…";
                 StatusText.Text = "Click Cancel to stop the countdown";
                 await Task.Delay(1000, countdown.Token);
             }
+            countdownOverlay?.Dispose(); countdownOverlay = null;
             countdown.Token.ThrowIfCancellationRequested();
             if (PreviewMode) throw new InvalidOperationException("Preview windows cannot capture the screen.");
             target = CaptureTargetFactory.Create(snapshot.Capture, displays, selectedWindow);
@@ -191,6 +196,7 @@ public partial class MainWindow
         finally
         {
             timer.Stop(); timer.Tick -= RecordingTick;
+            countdownOverlay?.Dispose(); countdownOverlay = null;
             recording = null;
             countdown.Dispose(); countdown = null;
             exportCancellation?.Dispose(); exportCancellation = null;

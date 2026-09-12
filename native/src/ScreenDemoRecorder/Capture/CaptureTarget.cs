@@ -3,7 +3,7 @@ using Windows.Graphics.Capture;
 
 namespace ScreenDemoRecorder.Capture;
 
-internal sealed record CaptureTarget(Func<GraphicsCaptureItem> CreateItem, PixelRect Area, Func<string?>? Validate = null,
+internal sealed record CaptureTarget(Func<GraphicsCaptureItem> CreateItem, PixelRect Area, PixelRect ScreenArea, Func<string?>? Validate = null,
     Func<PixelPoint, PixelPoint?>? MapScreenPoint = null);
 
 internal static class CaptureTargetFactory
@@ -31,7 +31,7 @@ internal static class CaptureTargetFactory
                 height = item.Size.Height;
             }
             finally { GraphicsInterop.Release(item); }
-            return new CaptureTarget(() => GraphicsInterop.ForWindow(selectedWindow.Handle), new PixelRect(0, 0, width, height),
+            return new CaptureTarget(() => GraphicsInterop.ForWindow(selectedWindow.Handle), new PixelRect(0, 0, width, height), selectedWindow.Bounds,
                 () => WindowProblem(selectedWindow.Handle, selectedWindow.ProcessId, selectedWindow.ClassName),
                 point => MapWindowPoint(selectedWindow.Handle, point, width, height));
         }
@@ -48,7 +48,8 @@ internal static class CaptureTargetFactory
         };
         if (RegionGeometry.Fit(area, display.Bounds.Width, display.Bounds.Height, settings.RegionMinimumSize) != area)
             throw new InvalidOperationException("The saved region no longer fits. Select a new area.");
-        return new CaptureTarget(() => GraphicsInterop.ForMonitor(display.Monitor), area, MapScreenPoint: point =>
+        var screenArea = new PixelRect(display.Bounds.X + area.X, display.Bounds.Y + area.Y, area.Width, area.Height);
+        return new CaptureTarget(() => GraphicsInterop.ForMonitor(display.Monitor), area, screenArea, MapScreenPoint: point =>
             CaptureCoordinates.MapScreenPoint(display.Bounds, area, point));
     }
 

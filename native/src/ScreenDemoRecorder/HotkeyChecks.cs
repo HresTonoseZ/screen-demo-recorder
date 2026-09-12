@@ -87,17 +87,28 @@ internal static class HotkeyChecks
             window.IsEnabled = true;
             window.ExecuteRecordingCommand(RecorderCommand.ToggleRecording);
             Require(window.ActiveRecordingTask is not null, "Start shortcut did not use the record action.");
+            await WaitForCountdownOverlayAsync(window);
             window.ExecuteRecordingCommand(RecorderCommand.TogglePause);
             window.ExecuteRecordingCommand(RecorderCommand.ToggleRecording);
             await window.ActiveRecordingTask!.WaitAsync(TimeSpan.FromSeconds(2));
             Require(window.StatusText.Text == "Countdown cancelled", "Start/stop shortcut did not cancel the countdown.");
+            Require(!window.CountdownOverlayVisible, "Cancelling the countdown left its overlay visible.");
             window.ExecuteRecordingCommand(RecorderCommand.ToggleRecording);
+            await WaitForCountdownOverlayAsync(window);
             window.ExecuteRecordingCommand(RecorderCommand.CancelRecording);
             await window.ActiveRecordingTask!.WaitAsync(TimeSpan.FromSeconds(2));
             Require(window.StatusText.Text == "Countdown cancelled", "Discard shortcut did not cancel the countdown.");
+            Require(!window.CountdownOverlayVisible, "Discarding the countdown left its overlay visible.");
             Require(!Directory.Exists(profile.Output.Directory) || !Directory.EnumerateFiles(profile.Output.Directory).Any(), "Countdown cancellation created a recording.");
         }
         finally { window.Close(); }
+    }
+
+    private static async Task WaitForCountdownOverlayAsync(MainWindow window)
+    {
+        for (var attempt = 0; attempt < 40 && !window.CountdownOverlayVisible; attempt++)
+            await Task.Delay(25);
+        Require(window.CountdownOverlayVisible, "The centered countdown overlay did not become visible.");
     }
 
     private static void Require(bool condition, string message)

@@ -299,7 +299,14 @@ public partial class App : Application
                         !liveOverlay.IsExcludedFromCapture || liveOverlay.HasCaptureSizedSurface || liveOverlay.VisibleSurfaceCount == 0)
                         throw new InvalidOperationException($"The live desktop overlay failed verification: visible={liveOverlay.IsVisible}, " +
                             $"bounds={liveOverlay.HasExpectedBounds}, passive={liveOverlay.IsPassive}, excluded={liveOverlay.IsExcludedFromCapture}, " +
-                            $"captureSized={liveOverlay.HasCaptureSizedSurface}, visibleSurfaces={liveOverlay.VisibleSurfaceCount}.");
+                             $"captureSized={liveOverlay.HasCaptureSizedSurface}, visibleSurfaces={liveOverlay.VisibleSurfaceCount}.");
+                }
+                using (var countdownOverlay = new CountdownOverlayWindow(liveBounds))
+                {
+                    countdownOverlay.ShowNumber(3);
+                    if (!countdownOverlay.IsVisible || !countdownOverlay.IsPassive || !countdownOverlay.IsExcluded ||
+                        !countdownOverlay.IsCenteredIn(liveBounds))
+                        throw new InvalidOperationException("The countdown overlay is not visible, passive, excluded or centered.");
                 }
                 var selectorProfile = store.GetActiveProfile();
                 selectorProfile.Selection.HandleShape = SelectionHandleShape.Square;
